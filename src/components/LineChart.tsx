@@ -54,6 +54,7 @@ export default function LineChart({ values, labels, band, baseline, decimals, un
         const i = Math.round(((px - L - 8) / (RGT - L - 16)) * last);
         setHover(Math.max(0, Math.min(last, i)));
       }}>
+      <defs><filter id="tip-shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity=".45" /></filter></defs>
       {band && <rect x={L} y={y(clamp(band.high))} width={RGT - L} height={Math.max(0, y(clamp(band.low)) - y(clamp(band.high)))} fill="var(--color-chart-baseline-band)" />}
       {ticks.map(t => (
         <g key={t}>
@@ -63,9 +64,10 @@ export default function LineChart({ values, labels, band, baseline, decimals, un
       ))}
       {baseline !== undefined && <line x1={L} x2={RGT} y1={y(baseline)} y2={y(baseline)} stroke="var(--color-chart-reference)" strokeWidth="1.5" strokeDasharray="6 5" />}
       <path d={path} fill="none" stroke="var(--color-chart-series-1)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      {hover !== null && <line x1={x(active)} x2={x(active)} y1={T} y2={B} stroke="var(--color-border-strong)" strokeWidth="1" strokeDasharray="3 3" />}
       <circle cx={x(active)} cy={y(values[active])} r="6" fill="var(--color-chart-series-1)" stroke="var(--color-bg-surface)" strokeWidth="3" />
       <g transform={`translate(${tipX},${tipY})`}>
-        <rect width="92" height="52" rx="8" fill="var(--color-bg-raised)" />
+        <rect width="92" height="52" rx="8" fill="var(--color-bg-canvas)" stroke="var(--color-border-strong)" strokeWidth="1" filter="url(#tip-shadow)" />
         <text x="10" y="23" className="chart-tip">{active === last && tipValue ? tipValue : `${fmt(values[active], decimals)} ${unit.length <= 3 ? unit : ''}`}</text>
         <text x="10" y="41" className="chart-text chart-text-2">{active === last ? tipLabel : labels[active]}</text>
       </g>
