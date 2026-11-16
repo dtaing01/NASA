@@ -1,0 +1,88 @@
+/* Design tokens from the Figma style guide (Color collection, Dark mode).
+   Names match the Figma variables: bg/surface -> --color-bg-surface, etc. */
+:root {
+  /* Color */
+  --color-bg-canvas: #17171b;
+  --color-bg-surface: #2e2e32;
+  --color-bg-raised: #444447;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #b9b9bb;
+  --color-text-muted: #959599;
+  --color-text-on-action: #ffffff;
+  --color-border-default: #444447;
+  --color-border-strong: #77777a;
+  --color-border-focus: #288bff;
+  --color-action-interact: #1c67e3;
+  --color-action-interact-hover: #288bff;
+  --color-action-navigate: #f64137;
+  --color-action-navigate-hover: #ff5c52;
+  --color-status-nominal: #47da84;
+  --color-status-nominal-text: #47da84;
+  --color-status-nominal-subtle: #003618;
+  --color-status-caution: #ea6f24;
+  --color-status-caution-text: #ea6f24;
+  --color-status-caution-subtle: #3b1b00;
+  --color-status-warning: #f64137;
+  --color-status-warning-text: #ff5c52;
+  --color-status-warning-subtle: #460401;
+  --color-status-info: #288bff;
+  --color-status-info-text: #288bff;
+  --color-status-info-subtle: #011b46;
+  --color-status-no-data: #77777a;
+  --color-status-no-data-text: #959599;
+  --color-chart-series-1: #3f83ef;
+  --color-chart-series-2: #00917e;
+  --color-chart-baseline-band: #444447;
+  --color-chart-grid: #444447;
+  --color-chart-reference: #959599;
+
+  /* Spacing */
+  --space-0-5: 4px;
+  --space-1: 8px;
+  --space-1-5: 12px;
+  --space-2: 16px;
+  --space-2-5: 20px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  /* Radius */
+  --radius-small: 4px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  --size-touch-target: 48px;
+
+  /* Fonts */
+  --font-heading: 'Inter', system-ui, sans-serif;
+  --font-body: 'Public Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+}
+
+/* Text styles (Figma: Heading/*, Body/*, Label/*, Stat/*) */
+.t-h1 { font: 700 40px/1 var(--font-heading); letter-spacing: -0.03em; }
+.t-h2 { font: 700 32px/1.06 var(--font-heading); letter-spacing: -0.02em; }
+.t-h3 { font: 700 22px/1.15 var(--font-heading); letter-spacing: -0.02em; }
+.t-h4 { font: 600 18px/1.35 var(--font-heading); letter-spacing: -0.02em; }
+.t-h5 { font: 600 16px/1.25 var(--font-heading); letter-spacing: -0.02em; }
+.t-body-lg { font: 400 18px/1.5 var(--font-body); }
+.t-body { font: 400 16px/1.62 var(--font-body); }
+.t-body-sm { font: 400 14px/1.57 var(--font-body); }
+.t-strong { font: 600 16px/1.62 var(--font-body); }
+.t-caption { font: 400 12px/1.5 var(--font-body); letter-spacing: 0.025em; }
+.t-meta { font: 700 12px/1.3 var(--font-heading); letter-spacing: 0.025em; text-transform: uppercase; }
+.t-overline { font: 500 12px/1.3 var(--font-mono); letter-spacing: 0.3em; text-transform: uppercase; }
+.t-stat-md { font: 300 48px/1 var(--font-mono); }
+.t-stat-sm { font: 300 32px/1 var(--font-mono); }
+.t-stat-xs { font: 300 24px/1.15 var(--font-mono); letter-spacing: -0.02em; }
+
+.c-primary { color: var(--color-text-primary); }
+.c-secondary { color: var(--color-text-secondary); }
+.c-muted { color: var(--color-text-muted); }
+.c-info { color: var(--color-status-info-text); }
+.c-nominal { color: var(--color-status-nominal-text); }
+.c-caution { color: var(--color-status-caution-text); }
+.c-warning { color: var(--color-status-warning-text); }
+.c-action { color: var(--color-action-interact); }
