@@ -28,7 +28,6 @@ export default function StatDetail() {
   const { area: areaId, metric: metricId } = useParams();
   const { data } = useStore();
   const [range, setRange] = useState<Range>('Mission');
-  const [grainPick, setGrain] = useState<Grain>('Weekly avg');
   const metric = data.metrics[metricId as MetricId];
   const area = AREAS.find(a => a.id === areaId);
   if (!metric || !area || metric.area !== area.id) return <Navigate to="/health/overview" replace />;
@@ -37,8 +36,8 @@ export default function StatDetail() {
   const status = statusOf(m);
   const bp = m.id === 'bloodPressure';
   const day = data.astronaut.missionDay;
-  // 7 days is too short for weekly averages, so it always shows daily values.
-  const grain: Grain = range === '7 days' ? 'Daily' : grainPick;
+  // 7 and 30 days show each day; Mission shows weekly averages so 142 days stay readable.
+  const grain: Grain = range === 'Mission' ? 'Weekly avg' : 'Daily';
   const weeksShown = range === 'Mission' ? m.weekly.length : 5;
   const daysShown = range === 'Mission' ? day : range === '30 days' ? 30 : 7;
   const series = grain === 'Weekly avg' ? m.weekly.slice(-weeksShown) : m.daily.slice(-daysShown);
@@ -77,17 +76,10 @@ export default function StatDetail() {
       main={
         <>
           <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/overview' }, { label: area.name, to: `/health/${area.id}` }, { label: m.name }]} />
-          <div className="between wrap">
-            <div className="row gap-12">
-              <Icon name={m.icon} size={28} />
-              <h1 className="t-h2">{m.name}</h1>
-              <StatusTag status={status} label={statusWord(status, m)} />
-            </div>
-            <div className="segmented" role="tablist" aria-label="Time range">
-              {(['7 days', '30 days', 'Mission'] as Range[]).map(r => (
-                <button key={r} type="button" role="tab" aria-selected={range === r} className={range === r ? 'seg-on t-strong' : 't-body-sm'} onClick={() => setRange(r)}>{r}</button>
-              ))}
-            </div>
+          <div className="row gap-12">
+            <Icon name={m.icon} size={28} />
+            <h1 className="t-h2">{m.name}</h1>
+            <StatusTag status={status} label={statusWord(status, m)} />
           </div>
 
           <div className="tiles">
@@ -103,15 +95,11 @@ export default function StatDetail() {
           <Card className="chart-card">
             <header className="between wrap">
               <h2 className="t-strong">{chartTitle}</h2>
-              <div className="segmented segmented-sm" role="radiogroup" aria-label="Show values by">
-                {(['Daily', 'Weekly avg'] as Grain[]).map(g => {
-                  const disabled = g === 'Weekly avg' && range === '7 days';
-                  return (
-                    <button key={g} type="button" role="radio" aria-checked={grain === g} disabled={disabled}
-                      title={disabled ? 'Pick 30 days or Mission to see weekly averages' : undefined}
-                      className={grain === g ? 'seg-on t-strong' : 't-body-sm'} onClick={() => setGrain(g)}>{g}</button>
-                  );
-                })}
+              <div className="segmented segmented-sm" role="radiogroup" aria-label="Time range">
+                {(['7 days', '30 days', 'Mission'] as Range[]).map(r => (
+                  <button key={r} type="button" role="radio" aria-checked={range === r}
+                    className={range === r ? 'seg-on t-strong' : 't-body-sm'} onClick={() => setRange(r)}>{r}</button>
+                ))}
               </div>
             </header>
             <div className="row gap-16 t-caption c-secondary chart-legend">
