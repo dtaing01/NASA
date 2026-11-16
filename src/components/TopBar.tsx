@@ -44,7 +44,6 @@ export default function TopBar() {
         <Link to="/health/overview" className="brand t-h5">STARPULSE</Link>
         <nav className="tabs" aria-label="Primary">
           <NavLink to="/health/overview" className={() => `tab ${healthActive ? 'tab-active' : ''}`}><Icon name="heart" />Health tracking</NavLink>
-          <NavLink to="/environment" className={({ isActive }) => `tab ${isActive ? 'tab-active' : ''}`}>Environment</NavLink>
           <NavLink to="/rewards" className={({ isActive }) => `tab ${isActive ? 'tab-active' : ''}`}><Icon name="star" />Rewards</NavLink>
           <NavLink to="/crew" className={({ isActive }) => `tab ${isActive ? 'tab-active' : ''}`}><Icon name="crew" />Crew</NavLink>
         </nav>
@@ -85,7 +84,7 @@ export default function TopBar() {
               <div className="t-caption c-secondary">{data.astronaut.expedition}  ·  Day {data.astronaut.missionDay}</div>
               <hr />
               <Button kind="secondary" full onClick={() => { reset(); setMenu(null); }}>Reset demo data</Button>
-              <p className="t-caption c-muted">Demo build: health and mission data are simulated or user-logged; Environment uses historical NASA RR-28 telemetry.</p>
+              <p className="t-caption c-muted">Demo build: health and mission data are simulated or user-logged; NASA RR-28 historical telemetry appears on Health Tracking.</p>
             </div>
           )}
         </div>
