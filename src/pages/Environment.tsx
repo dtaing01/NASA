@@ -35,8 +35,14 @@ export default function Environment() {
  const iss=series(f.iss),ground=series(f.ground);
  const selected=channel==='ISS'?iss:ground;
  const labels=visible.map(r=>labelDate(String(r[0])));
- const last=selected.filter((v):v is number=>v!==null).at(-1)??null;
- const first=visible[0]?.[0],end=visible.at(-1)?.[0];
+const validValues = selected.filter((v): v is number => v !== null);
+const last = validValues.length > 0
+  ? validValues[validValues.length - 1]
+  : null;
+const first = visible[0]?.[0];
+const end = visible.length > 0
+  ? visible[visible.length - 1][0]
+  : undefined;
  return <PageShell main={<>
    <header className="stack-8"><h1 className="t-h2">Environment</h1>
     <p className="t-body-sm c-secondary">Historical RR-28 research telemetry · NASA OSDR EDA dataset · Not live ISS monitoring</p>
