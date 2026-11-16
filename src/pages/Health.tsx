@@ -125,7 +125,7 @@ export default function Health() {
                   {area.view === 'overview' ? `Each axis is an area score out of 100 · ${SCORE_HEALTHY}+ is healthy (shaded) · center = 40`
                     : area.view === 'radar' ? 'Each axis scaled to its healthy range · inside = low, outside = high'
                     : area.id === 'vision' ? 'Measured at scheduled eye exams, so this area updates less often'
-                    : 'From your dosimeter and space weather forecasts'}
+                    : 'From your dosimeter'}
                 </p>
               </div>
               <div className="dropdown" ref={ddRef}>
@@ -182,7 +182,7 @@ export default function Health() {
                   <p className="t-caption c-muted">On track: at today’s rate you’ll finish the mission at about {r.projected} mSv.</p>
                 </div>
                 {r.rows.map(v => <ListRow key={v.name} {...v} to={v.status === 'caution' ? '/alerts' : undefined} />)}
-                <p className="note t-body-sm c-secondary"><i className="dot dot-info" />Radiation is tracked automatically by your dosimeter. Nothing to log here.</p>
+                <p className="note t-body-sm c-secondary"><i className="dot dot-info" />Radiation is tracked automatically by your dosimeter. Space weather, like solar activity, shows up as a warning and doesn’t change your score.</p>
               </div>
             )}
           </section>

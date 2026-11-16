@@ -408,7 +408,7 @@ const checkInDone: MetricId[] = ['sleep', 'heartRate', 'mood', 'hydration'];
 /* ------------------------------------------------------------------ everything else */
 
 export const initialData: AppData = {
-  version: 2,
+  version: 3,
   astronaut: { initials: 'JH', name: 'You', role: 'Flight engineer', missionDay: DAY, dateLabel: 'Sunday, 15 Nov', expedition: 'Expedition 74' },
   points: 1180,
   pointsThisWeek: 340,
@@ -422,9 +422,10 @@ export const initialData: AppData = {
   ],
   radiation: {
     missionDose: 58, missionLimit: 150, projected: 112,
+    // Only dosimeter readings count toward the Radiation score. Solar activity is a
+    // space weather forecast the astronaut can't change, so it lives in Alerts instead.
     rows: [
       { name: 'Daily dose rate', detail: 'Typical for low Earth orbit', value: '0.42 mSv', meta: 'Per day · 7-day avg', status: 'nominal' },
-      { name: 'Solar activity', detail: 'Class M flare forecast · stay near shielded module if alerted', value: 'Elevated', meta: 'Updated 5 h ago', status: 'caution' },
     ],
   },
   alerts: [
@@ -499,7 +500,7 @@ export const AREAS: { id: AreaId; name: string; title: string; summary: string; 
   { id: 'cardiovascular', name: 'Cardiovascular', title: 'Cardiovascular health', summary: 'Heart rate · BP · HRV · SpO₂', metrics: ['heartRate', 'bloodPressure', 'hrv', 'spo2'], view: 'radar' },
   { id: 'body', name: 'Body', title: 'Body', summary: 'Exercise · mass · hydration · bone', metrics: ['exercise', 'bodyMass', 'hydration', 'boneDensity'], view: 'radar' },
   { id: 'vision', name: 'Vision', title: 'Vision', summary: '2 metrics · shown as a list', metrics: [], view: 'list' },
-  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Dose · solar alerts · shown as a list', metrics: [], view: 'list' },
+  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Mission dose · dose rate · shown as a list', metrics: [], view: 'list' },
 ];
 
 /** The 6 daily check-in items, in the order they're asked. */
