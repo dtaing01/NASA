@@ -5,6 +5,7 @@ import CheckInModal from './components/CheckInModal';
 import { CheckInContext } from './components/CheckInContext';
 import { useStore } from './data/store';
 import Health from './pages/Health';
+import Environment from './pages/Environment';
 import StatDetail from './pages/StatDetail';
 import Rewards from './pages/Rewards';
 import Crew from './pages/Crew';
@@ -19,11 +20,17 @@ export default function App() {
   return (
     <CheckInContext.Provider value={ctx}>
       <TopBar />
+      {/* STARPULSE DEMONSTRATION: provenance disclosure */}
+      <div style={{maxWidth:1280,margin:'12px auto 0',padding:'0 24px',fontSize:12,color:'var(--color-text-secondary)'}}>
+        {typeof window !== 'undefined' && !window.location.pathname.startsWith('/environment') &&
+          <>Demo: health metrics, astronaut status, radiation and alerts are simulated unless marked User Logged. Historical NASA RR-28 measurements are under <a href="/environment" style={{textDecoration:'underline'}}>Environment</a>.</>}
+      </div>
       <Routes>
         <Route path="/" element={<Navigate to="/health/overview" replace />} />
         <Route path="/health" element={<Navigate to="/health/overview" replace />} />
         <Route path="/health/:area" element={<Health />} />
         <Route path="/health/:area/:metric" element={<StatDetail />} />
+        <Route path="/environment" element={<Environment />} />
         <Route path="/rewards" element={<Rewards />} />
         <Route path="/crew" element={<Crew />} />
         <Route path="/alerts" element={<Alerts />} />
