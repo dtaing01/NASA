@@ -99,7 +99,7 @@ export default function CheckInModal({ onClose }: { onClose: () => void }) {
             onChange={v => setAnswers(a => ({ ...a, [metric.id]: { ...values, [f.key]: v } }))} />
         ))}
         <div className="context t-caption c-secondary">
-          <span>Yesterday  {fmt(yesterday, metric.decimals)} {metric.unit}</span><span className="c-muted">·</span>
+          <span>Yesterday  {yesterday === null || yesterday === undefined ? '–' : `${fmt(yesterday, metric.decimals)} ${metric.unit}`}</span><span className="c-muted">·</span>
           <span>Pre-flight baseline  {fmt(metric.preflight, metric.decimals)} {metric.unit}</span>
         </div>
         <div className="modal-foot">

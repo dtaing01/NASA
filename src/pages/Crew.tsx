@@ -87,7 +87,7 @@ export default function Crew() {
       side={
         <>
           <Card title="What your crew sees" className="list-card">
-            <p className="t-body-sm c-secondary sub">Health data stays between you and the flight surgeon.</p>
+            <p className="t-body-sm c-secondary sub">Your health data stays private to you.</p>
             {data.sharing.map(s => (
               <div key={s.label} className="list-row">
                 <Icon name={s.shared ? 'eye' : 'eyeoff'} size={18} className={s.shared ? 'c-secondary' : 'c-muted'} />

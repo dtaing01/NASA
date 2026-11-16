@@ -88,7 +88,7 @@ export default function Health() {
   // Hide the banner once the thing it warns about is back in range.
   const hyd = data.metrics.hydration;
   const showBanner = area.id !== 'body' || statusOf(hyd) !== 'good';
-  const bannerText = area.id === 'body' ? `${banner.text} · ${fmt(Math.max(0, hyd.range.low - hyd.daily[hyd.daily.length - 1]), 1)} L to go` : banner.text;
+  const bannerText = area.id === 'body' ? `${banner.text} · ${fmt(Math.max(0, hyd.range.low - (hyd.daily[hyd.daily.length - 1] ?? 0)), 1)} L to go` : banner.text;
   const r = data.radiation;
 
   return (
@@ -167,7 +167,7 @@ export default function Health() {
             {area.id === 'vision' && (
               <div className="stack-12 list-area">
                 {data.vision.map(v => <ListRow key={v.name} {...v} />)}
-                <p className="note t-body-sm c-secondary"><i className="dot dot-info" />Notice blurry near vision, headaches or a shadow in your sight? Report it in a check-in and the flight surgeon is notified.</p>
+                <p className="note t-body-sm c-secondary"><i className="dot dot-info" />Notice blurry near vision, headaches or a shadow in your sight? Report it in your next check-in.</p>
               </div>
             )}
 

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AREAS, CHECK_IN_ORDER, initialData, type AppData, type AreaId, type Metric, type MetricId } from './mockData';
+import { AREAS, CHECK_IN_ORDER, initialData, weeklyFrom, type AppData, type AreaId, type Metric, type MetricId } from './mockData';
 
 const STORAGE_KEY = 'starpulse-demo-data';
 
@@ -14,8 +14,8 @@ export function fmt(v: number, decimals = 0) {
 /** The value shown as "today / latest" for a metric. */
 export function latest(m: Metric): number {
   if (m.id === 'exercise') return m.weekly[m.weekly.length - 1];
-  if (m.id === 'bloodPressure') return m.entries[0]?.value ?? m.daily[m.daily.length - 1];
-  return m.daily[m.daily.length - 1];
+  if (m.id === 'bloodPressure') return m.entries[0]?.value ?? 0;
+  return m.daily[m.daily.length - 1] ?? m.entries[0]?.value ?? 0;
 }
 
 export function latestLabel(m: Metric): string {
@@ -60,25 +60,6 @@ export function areaScore(data: AppData, id: AreaId): { score: number; off: numb
 }
 
 export const SCORE_HEALTHY = 80;
-
-/**
- * One value per mission day (day 1 → today). The mock data only stores 20 weekly
- * averages plus the last 30 days, so earlier days are filled in from the weekly
- * averages with a small, fixed wobble. The last 30 days are the real stored values.
- */
-export function missionDaily(m: Metric, today: number): number[] {
-  const out: number[] = [];
-  const f = 10 ** m.decimals;
-  // Exercise is stored as hours per week; its daily values are hours per day.
-  const scale = m.id === 'exercise' ? 1 / 7 : 1;
-  const spread = (m.range.high - m.range.low) * 0.12 * scale;
-  for (let d = 1; d <= today; d++) {
-    const w = Math.min(m.weekly.length - 1, Math.floor((d - 1) / 7));
-    const x = Math.sin(d * 12.9898 + m.id.length * 78.233) * 43758.5453;
-    out.push(Math.round((m.weekly[w] * scale + (x - Math.floor(x) - 0.5) * 2 * spread) * f) / f);
-  }
-  return [...out.slice(0, today - m.daily.length), ...m.daily];
-}
 
 export function average(xs: number[]) { return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); }
 
@@ -151,20 +132,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (id === 'hydration') {
         const litres = v / 1000;
-        m.daily[last] = Math.round((m.daily[last] + litres) * 100) / 100;
+        m.daily[last] = Math.round(((m.daily[last] ?? 0) + litres) * 100) / 100;
         m.entries.unshift({ day, time, source: 'Manual', value: litres });
       } else if (id === 'exercise') {
         const hours = v / 60;
-        m.daily[last] = Math.round((m.daily[last] + hours) * 10) / 10;
-        m.weekly[m.weekly.length - 1] = Math.round((m.weekly[m.weekly.length - 1] + hours) * 10) / 10;
+        m.daily[last] = Math.round(((m.daily[last] ?? 0) + hours) * 10) / 10;
         m.entries.unshift({ day, time: String(values.type ?? 'Session'), source: 'Manual', value: v });
       } else {
         m.daily[last] = v;
         m.entries = m.entries.filter(e => !(e.day === day && e.source === 'Auto'));
         m.entries.unshift({ day, time, source: 'Manual', value: v, value2: values.value2 !== undefined ? Number(values.value2) : undefined });
-        const wk = m.weekly.length - 1;
-        m.weekly[wk] = Math.round(((m.weekly[wk] * 6 + v) / 7) * 10 ** m.decimals) / 10 ** m.decimals;
       }
+      // Weekly values are always recalculated from the daily ones so the two charts agree.
+      m.weekly = weeklyFrom(m.daily, id === 'exercise' ? 'sum' : 'avg', m.decimals);
       m.entries = m.entries.slice(0, 8);
 
       earned += d.rules.perLog;

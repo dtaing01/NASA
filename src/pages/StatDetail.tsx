@@ -4,7 +4,7 @@ import Icon from '../components/Icon';
 import LineChart from '../components/LineChart';
 import LogForm from '../components/LogForm';
 import { Breadcrumbs, Card, PageShell, StatusTag } from '../components/ui';
-import { average, fmt, latestLabel, missionDaily, statusOf, statusWord, useStore } from '../data/store';
+import { average, fmt, latestLabel, statusOf, statusWord, useStore } from '../data/store';
 import { AREAS, dayLabel, type Entry, type Metric, type MetricId } from '../data/mockData';
 
 type Range = '7 days' | '30 days' | 'Mission';
@@ -41,7 +41,7 @@ export default function StatDetail() {
   const grain: Grain = range === '7 days' ? 'Daily' : grainPick;
   const weeksShown = range === 'Mission' ? m.weekly.length : 5;
   const daysShown = range === 'Mission' ? day : range === '30 days' ? 30 : 7;
-  const series = grain === 'Weekly avg' ? m.weekly.slice(-weeksShown) : missionDaily(m, day).slice(-daysShown);
+  const series = grain === 'Weekly avg' ? m.weekly.slice(-weeksShown) : m.daily.slice(-daysShown);
   const labels = grain === 'Weekly avg'
     ? series.map((_, i) => `W${m.weekly.length - weeksShown + i + 1}`)
     : series.map((_, i) => { const d = day - (series.length - 1 - i); return d === day ? 'Today' : range === '7 days' ? weekday(d) : `Day ${d}`; });
@@ -121,7 +121,7 @@ export default function StatDetail() {
             </div>
             <LineChart key={`${range}-${grain}`} values={series} labels={labels} band={chartBand} baseline={signed ? undefined : chartBaseline}
               decimals={perDay ? 1 : grain === 'Weekly avg' && m.unit === '/ 5' ? 1 : m.decimals} unit={perDay ? 'h' : m.unit}
-              tipLabel={grain === 'Weekly avg' ? 'This week' : 'Today'} tipValue={bp && grain === 'Daily' ? latestLabel(m) : undefined} />
+              domain={m.unit === '/ 5' ? [1, 5] : undefined} tipLabel={grain === 'Weekly avg' ? 'This week' : 'Today'} tipValue={bp && grain === 'Daily' ? latestLabel(m) : undefined} />
           </Card>
 
           <div className="suggestion">
