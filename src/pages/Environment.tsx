@@ -14,7 +14,7 @@ const FIELDS: Record<Key,{label:string;unit:string;iss:string;ground:string;deci
 function average(a:(number|null)[]) { const v=a.filter((x):x is number=>x!==null);return v.length?v.reduce((x,y)=>x+y,0)/v.length:null; }
 function display(v:number|null,d:number) {return v===null?'No data':v.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d});}
 function labelDate(s:string) {return new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'});}
-export default function Environment() {
+export function EnvironmentPanel() {
  const [data,setData]=useState<Data|null>(null);
  const [error,setError]=useState('');
  const [metric,setMetric]=useState<Key>('co2');
@@ -43,8 +43,8 @@ const first = visible[0]?.[0];
 const end = visible.length > 0
   ? visible[visible.length - 1][0]
   : undefined;
- return <PageShell main={<>
-   <header className="stack-8"><h1 className="t-h2">Environment</h1>
+ return <>
+   <header className="stack-8"><h2 className="t-h4">Environmental monitoring</h2>
     <p className="t-body-sm c-secondary">Historical RR-28 research telemetry · NASA OSDR EDA dataset · Not live ISS monitoring</p>
    </header>
    <div className="env-notice"><strong>Data provenance:</strong> Graphs on this page use hourly averages calculated from the uploaded RR-28 EDA telemetry CSV. The original data labels are “ISS” and “Ground”; these channels are not verified as station-wide cabin conditions or astronaut exposure. No clinical or environmental safety conclusions should be drawn from these demonstration graphs.</div>
@@ -73,5 +73,7 @@ const end = visible.length > 0
     <p className="t-body-sm">This chart uses {data?.aggregation??'hourly means'}. Missing readings remain missing; timestamps are not aligned to the simulated mission day. The original CSV includes {data?.rawRows.toLocaleString()??'61,488'} rows.</p>
     <div className="env-notice"><strong>Other STARPULSE views:</strong> Heart rate, blood pressure, oxygen saturation, exercise, mood, hydration, radiation, crew status, and associated alerts/scores are simulated demonstration data unless explicitly marked “User Logged.” User-entered values are stored locally in the browser. These are not NASA astronaut medical records.</div>
    </Card>
- </>} side={undefined}/>;
+ </>;
 }
+
+export default function Environment(){ return <PageShell main={<EnvironmentPanel />} side={undefined}/>; }
