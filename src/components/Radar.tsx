@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatusTag } from './ui';
 import { fmt, latest, latestLabel, statusOf, statusWord, type Status } from '../data/store';
@@ -5,9 +6,22 @@ import type { Metric } from '../data/mockData';
 
 const CX = 415, CY = 228, R = 140;
 
-/** Value shown on the radar: weekly average for sleep, latest reading otherwise. */
+/** Value shown on the radar: the latest reading, so a manual log shows up right away. */
 export function radarValue(m: Metric) {
-  return m.id === 'sleep' ? m.weekly[m.weekly.length - 1] : latest(m);
+  return latest(m);
+}
+
+/**
+ * Where a value sits on its axis (0 = center, 1 = outer ring).
+ * The healthy range fills the band between 25% and 75%. Values outside it keep
+ * moving toward the center or the edge but never pile up on one spot.
+ */
+export function metricRadius(m: Metric, v = radarValue(m)) {
+  const { low, high } = m.range;
+  const width = high - low;
+  if (v < low) return 0.25 / (1 + (low - v) / width);
+  if (v > high) return 1 - 0.25 / (1 + (v - high) / width);
+  return 0.25 + ((v - low) / width) * 0.5;
 }
 
 export function radarLabel(m: Metric) {
@@ -30,12 +44,10 @@ export interface RadarAxis {
 
 /** Turns a metric into an axis. Its healthy range sits between the 25% and 75% rings: inside = low, outside = high. */
 export function metricAxis(m: Metric): RadarAxis {
-  const { low, high } = m.range;
-  const r = 0.25 + ((radarValue(m) - low) / (high - low)) * 0.5;
   const status = statusOf(m, radarValue(m));
   return {
     key: m.id, name: m.name, status,
-    value: Math.max(0.07, Math.min(0.96, r)),
+    value: Math.max(0.04, Math.min(0.97, metricRadius(m))),
     detail: status === 'good' ? radarLabel(m) : `${radarLabel(m)} · ${statusWord(status).toLowerCase()}`,
     to: `/health/${m.area}/${m.id}`,
   };
@@ -50,13 +62,37 @@ interface Props {
   label: string;
 }
 
+/** Eases axis values to their new positions so changes after a log are easy to spot. */
+function useTweened(target: number[]) {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  const key = target.map(v => v.toFixed(4)).join('|');
+  useEffect(() => {
+    const start = performance.now();
+    const a = from.current.length === target.length ? from.current : target;
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / 500);
+      const e = 1 - (1 - k) ** 3;
+      const cur = target.map((v, i) => a[i] + (v - a[i]) * e);
+      from.current = cur;
+      setShown(cur);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return shown;
+}
+
 export default function Radar({ axes, band, target, label }: Props) {
   const navigate = useNavigate();
+  const values = useTweened(axes.map(a => a.value));
   const n = axes.length;
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
   const at = (i: number, r: number) => [CX + Math.cos(angle(i)) * r * R, CY + Math.sin(angle(i)) * r * R] as const;
   const ring = (r: number) => axes.map((_, i) => at(i, r).join(',')).join(' ');
-  const pts = axes.map((a, i) => ({ a, xy: at(i, a.value) }));
+  const pts = axes.map((a, i) => ({ a, xy: at(i, values[i] ?? a.value) }));
 
   return (
     <div className="radar">

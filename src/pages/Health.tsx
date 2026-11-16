@@ -79,8 +79,8 @@ export default function Health() {
     const { score, off, total } = areaScore(data, a.id);
     return {
       key: a.id, name: a.name, value: scoreToRadius(score), to: `/health/${a.id}`,
-      status: score < SCORE_HEALTHY ? 'low' : 'good',
-      detail: `${score}  ·  ${off === 0 ? 'all in range' : score < SCORE_HEALTHY ? `${off} of ${total} need attention` : `${off} to watch`}`,
+      status: off > 0 || score < SCORE_HEALTHY ? 'low' : 'good',
+      detail: `${score}  ·  ${off === 0 ? 'all in range' : `${off} of ${total} need attention`}`,
     };
   });
   const overallScore = Math.round(average(AREAS.map(a => areaScore(data, a.id).score)));

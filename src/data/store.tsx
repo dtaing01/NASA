@@ -34,15 +34,25 @@ export const statusWord = (s: Status, m?: Metric) =>
   s === 'good' ? 'Good' : m?.id === 'hydration' && s === 'low' ? 'Behind' : s === 'low' ? 'Low' : 'High';
 
 /**
+ * Metric score out of 100: 100 inside its healthy range, dropping the further
+ * outside it the reading is (down to 50 at one range-width away).
+ */
+export function metricScore(m: Metric, v = latest(m)) {
+  const { low, high } = m.range;
+  const dist = v < low ? low - v : v > high ? v - high : 0;
+  return 100 - 50 * Math.min(1, dist / (high - low));
+}
+
+/**
  * Area score out of 100, used by the overview radar and the Area dropdown.
- * Each metric in range counts 100, each one out of range 55. List areas lose 15 per caution item.
+ * Radar areas average their metric scores. List areas lose 15 per caution item.
  */
 export function areaScore(data: AppData, id: AreaId): { score: number; off: number; total: number } {
   const area = AREAS.find(a => a.id === id)!;
   if (area.view === 'radar') {
-    const st = area.metrics.map(m => statusOf(data.metrics[m]));
-    const off = st.filter(s => s !== 'good').length;
-    return { score: Math.round(average(st.map(s => (s === 'good' ? 100 : 55)))), off, total: st.length };
+    const ms = area.metrics.map(m => data.metrics[m]);
+    const off = ms.filter(m => statusOf(m) !== 'good').length;
+    return { score: Math.round(average(ms.map(m => metricScore(m)))), off, total: ms.length };
   }
   const rows = id === 'vision' ? data.vision : data.radiation.rows;
   const off = rows.filter(r => r.status !== 'nominal').length;
