@@ -11,3 +11,17 @@ StarPulse is an astronaut-centered health monitoring platform that collects, vis
 
 The system gives astronauts a centralized dashboard to monitor daily health and spot potential complications before they escalate.
 
+
+🧑‍💻 Running the demo app
+
+The app is React + Vite + TypeScript. You need Node 18 or newer.
+
+    npm install
+    npm run dev
+
+Then open the address it prints (usually http://localhost:5173).
+
+- Screens: Health tracking (5 area views), daily check-in, 12 stat detail pages, Rewards, Crew, Alerts.
+- All data is mock data in src/data/mockData.ts. Edit values there to change what the app shows.
+- Anything you log is saved in your browser only. To start over, click the JH avatar → "Reset demo data".
+- Design tokens (colors, type, spacing) come from the Figma style guide and live in src/styles/tokens.css.
