@@ -8,6 +8,9 @@ import { average, fmt, latestLabel, statusOf, statusWord, useStore } from '../da
 import { AREAS, dayLabel, type Entry, type Metric, type MetricId } from '../data/mockData';
 
 type Range = '7 days' | '30 days' | 'Mission';
+type Grain = 'Daily' | 'Weekly avg';
+
+const weekday = (d: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][((d - 142) % 7 + 7) % 7];
 
 function entryValue(m: Metric, e: Entry) {
   if (m.id === 'bloodPressure') return `${e.value}/${e.value2}`;
@@ -27,15 +30,26 @@ export default function StatDetail() {
   const [range, setRange] = useState<Range>('Mission');
   const metric = data.metrics[metricId as MetricId];
   const area = AREAS.find(a => a.id === areaId);
-  if (!metric || !area || metric.area !== area.id) return <Navigate to="/health/behavioral" replace />;
+  if (!metric || !area || metric.area !== area.id) return <Navigate to="/health/overview" replace />;
 
   const m = metric;
   const status = statusOf(m);
   const bp = m.id === 'bloodPressure';
   const day = data.astronaut.missionDay;
-  const series = range === 'Mission' ? m.weekly : range === '30 days' ? m.daily : m.daily.slice(-7);
-  const labels = range === 'Mission' ? m.weekly.map((_, i) => `W${i + 1}`)
-    : series.map((_, i) => { const d = day - (series.length - 1 - i); return range === '7 days' ? dayLabel(d).slice(0, 3) : d === day ? 'Today' : `D${d}`; });
+  // 7 and 30 days show each day; Mission shows weekly averages so 142 days stay readable.
+  const grain: Grain = range === 'Mission' ? 'Weekly avg' : 'Daily';
+  const weeksShown = range === 'Mission' ? m.weekly.length : 5;
+  const daysShown = range === 'Mission' ? day : range === '30 days' ? 30 : 7;
+  const series = grain === 'Weekly avg' ? m.weekly.slice(-weeksShown) : m.daily.slice(-daysShown);
+  const labels = grain === 'Weekly avg'
+    ? series.map((_, i) => `W${m.weekly.length - weeksShown + i + 1}`)
+    : series.map((_, i) => { const d = day - (series.length - 1 - i); return d === day ? 'Today' : range === '7 days' ? weekday(d) : `Day ${d}`; });
+  const perDay = m.id === 'exercise' && grain === 'Daily';
+  const chartBand = perDay ? { low: m.range.low / 7, high: m.range.high / 7 } : m.range;
+  const chartBaseline = perDay ? m.preflight / 7 : m.preflight;
+  const baseTitle = m.id === 'exercise' ? (perDay ? 'Hours per day' : 'Hours per week') : m.chartTitle.replace(/ · weekly average$/, '');
+  const rangeWords = range === 'Mission' ? 'whole mission' : `last ${range}`;
+  const chartTitle = m.id === 'exercise' ? `${baseTitle} · ${rangeWords}` : `${baseTitle} · ${grain === 'Weekly avg' ? 'weekly average' : 'daily'} · ${rangeWords}`;
   const missionAvg = average(m.weekly);
   const delta = missionAvg - m.preflight;
   const first = m.entries[0];
@@ -61,18 +75,11 @@ export default function StatDetail() {
     <PageShell
       main={
         <>
-          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/behavioral' }, { label: area.name, to: `/health/${area.id}` }, { label: m.name }]} />
-          <div className="between wrap">
-            <div className="row gap-12">
-              <Icon name={m.icon} size={28} />
-              <h1 className="t-h2">{m.name}</h1>
-              <StatusTag status={status} label={statusWord(status, m)} />
-            </div>
-            <div className="segmented" role="tablist" aria-label="Time range">
-              {(['7 days', '30 days', 'Mission'] as Range[]).map(r => (
-                <button key={r} type="button" role="tab" aria-selected={range === r} className={range === r ? 'seg-on t-strong' : 't-body-sm'} onClick={() => setRange(r)}>{r}</button>
-              ))}
-            </div>
+          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/overview' }, { label: area.name, to: `/health/${area.id}` }, { label: m.name }]} />
+          <div className="row gap-12">
+            <Icon name={m.icon} size={28} />
+            <h1 className="t-h2">{m.name}</h1>
+            <StatusTag status={status} label={statusWord(status, m)} />
           </div>
 
           <div className="tiles">
@@ -87,15 +94,22 @@ export default function StatDetail() {
 
           <Card className="chart-card">
             <header className="between wrap">
-              <h2 className="t-strong">{range === 'Mission' ? m.chartTitle : `${m.chartTitle.split(' · ')[0]} · ${range === '7 days' ? 'last 7 days' : 'last 30 days'}`}</h2>
-              <div className="row gap-16 t-caption c-secondary">
-                <span className="row gap-6"><i className="legend-line" />You</span>
-                {!signed && <span className="row gap-6"><i className="legend-dash" />Pre-flight</span>}
-                <span className="row gap-6"><i className="legend-band plain" />{m.range.label}</span>
+              <h2 className="t-strong">{chartTitle}</h2>
+              <div className="segmented segmented-sm" role="radiogroup" aria-label="Time range">
+                {(['7 days', '30 days', 'Mission'] as Range[]).map(r => (
+                  <button key={r} type="button" role="radio" aria-checked={range === r}
+                    className={range === r ? 'seg-on t-strong' : 't-body-sm'} onClick={() => setRange(r)}>{r}</button>
+                ))}
               </div>
             </header>
-            <LineChart values={series} labels={labels} band={m.range} baseline={signed ? undefined : m.preflight} decimals={m.decimals} unit={m.unit}
-              tipLabel={range === 'Mission' ? 'This week' : 'Today'} tipValue={bp && range === 'Mission' ? latestLabel(m) : undefined} />
+            <div className="row gap-16 t-caption c-secondary chart-legend">
+                <span className="row gap-6"><i className="legend-line" />You</span>
+                {!signed && <span className="row gap-6"><i className="legend-dash" />Pre-flight</span>}
+                <span className="row gap-6"><i className="legend-band plain" />{perDay ? `Target ${fmt(chartBand.low, 1)}–${fmt(chartBand.high, 1)} h a day` : m.range.label}</span>
+            </div>
+            <LineChart key={`${range}-${grain}`} values={series} labels={labels} band={chartBand} baseline={signed ? undefined : chartBaseline}
+              decimals={perDay ? 1 : grain === 'Weekly avg' && m.unit === '/ 5' ? 1 : m.decimals} unit={perDay ? 'h' : m.unit}
+              domain={m.unit === '/ 5' ? [1, 5] : undefined} tipLabel={grain === 'Weekly avg' ? 'This week' : 'Today'} tipValue={bp && grain === 'Daily' ? latestLabel(m) : undefined} />
           </Card>
 
           <div className="suggestion">

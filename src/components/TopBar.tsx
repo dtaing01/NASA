@@ -41,9 +41,9 @@ export default function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <Link to="/health/behavioral" className="brand t-h5">STARPULSE</Link>
+        <Link to="/health/overview" className="brand t-h5">STARPULSE</Link>
         <nav className="tabs" aria-label="Primary">
-          <NavLink to="/health/behavioral" className={() => `tab ${healthActive ? 'tab-active' : ''}`}><Icon name="heart" />Health tracking</NavLink>
+          <NavLink to="/health/overview" className={() => `tab ${healthActive ? 'tab-active' : ''}`}><Icon name="heart" />Health tracking</NavLink>
           <NavLink to="/rewards" className={({ isActive }) => `tab ${isActive ? 'tab-active' : ''}`}><Icon name="star" />Rewards</NavLink>
           <NavLink to="/crew" className={({ isActive }) => `tab ${isActive ? 'tab-active' : ''}`}><Icon name="crew" />Crew</NavLink>
         </nav>

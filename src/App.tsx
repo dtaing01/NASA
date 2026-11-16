@@ -20,14 +20,14 @@ export default function App() {
     <CheckInContext.Provider value={ctx}>
       <TopBar />
       <Routes>
-        <Route path="/" element={<Navigate to="/health/behavioral" replace />} />
-        <Route path="/health" element={<Navigate to="/health/behavioral" replace />} />
+        <Route path="/" element={<Navigate to="/health/overview" replace />} />
+        <Route path="/health" element={<Navigate to="/health/overview" replace />} />
         <Route path="/health/:area" element={<Health />} />
         <Route path="/health/:area/:metric" element={<StatDetail />} />
         <Route path="/rewards" element={<Rewards />} />
         <Route path="/crew" element={<Crew />} />
         <Route path="/alerts" element={<Alerts />} />
-        <Route path="*" element={<Navigate to="/health/behavioral" replace />} />
+        <Route path="*" element={<Navigate to="/health/overview" replace />} />
       </Routes>
       {checkInOpen && <CheckInModal onClose={() => setCheckInOpen(false)} />}
       {toast && <div className="toast t-body-sm" role="status">{toast.text}</div>}

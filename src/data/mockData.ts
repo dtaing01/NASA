@@ -48,10 +48,10 @@ export interface Metric {
   range: { low: number; high: number; label: string; kind: 'Earth' | 'Your usual' | 'Target' };
   preflight: number;
   preflight2?: number;
-  /** 20 weekly averages, week 1 → week 20 (this week). */
+  /** 20 weekly values (average, or total for exercise), week 1 → week 20 (the last 7 days). */
   weekly: number[];
-  /** Last 30 daily values, oldest first. Today is the last item. */
-  daily: number[];
+  /** One value per mission day, day 1 first, today last. null = no reading that day. */
+  daily: (number | null)[];
   entries: Entry[];     // newest first
   chartTitle: string;
   suggestion: { text: string; link?: { label: string; to: string } };
@@ -125,30 +125,78 @@ export interface AppData {
 
 /* ------------------------------------------------------------------ helpers */
 
-/** Deterministic wobble so the series look natural but never change between reloads. */
-function wobble(seed: number, i: number, amount: number) {
-  const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
-  return (x - Math.floor(x) - 0.5) * 2 * amount;
+const DAY = 142;          // today's mission day
+const WEEKS = 20;         // weekly averages cover the last 20 full weeks (140 days)
+const dayName = (d: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][((d - DAY) % 7 + 7) % 7];
+export const dayLabel = (d: number) => (d === DAY ? 'Today' : d === DAY - 1 ? 'Yesterday' : dayName(d));
+
+/** Small seeded random number generator so the data is the same on every load. */
+function rng(seed: number) {
+  let a = seed * 2654435761 >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-/** A series that moves from `from` to `to` across `n` points with a little noise. */
-function trend(n: number, from: number, to: number, noise: number, seed: number, decimals = 1) {
-  const f = 10 ** decimals;
-  return Array.from({ length: n }, (_, i) => {
-    const t = n === 1 ? 1 : i / (n - 1);
-    const v = from + (to - from) * t + (i === n - 1 ? 0 : wobble(seed, i, noise));
+interface SeriesSpec {
+  seed: number;
+  /** Trend through the mission as [day, value] points; values in between are linear. */
+  path: [number, number][];
+  /** Day-to-day noise size. Noise is smoothed so neighbouring days look related. */
+  noise: number;
+  decimals: number;
+  min?: number;
+  max?: number;
+  /** Fixed values for specific days, e.g. today's reading from the designs. */
+  pin?: Record<number, number>;
+}
+
+function along(path: [number, number][], d: number) {
+  for (let i = 1; i < path.length; i++) {
+    const [d0, v0] = path[i - 1], [d1, v1] = path[i];
+    if (d <= d1) return v0 + ((v1 - v0) * (d - d0)) / (d1 - d0);
+  }
+  return path[path.length - 1][1];
+}
+
+/** One value per mission day (index 0 = day 1, last = today). */
+function series(spec: SeriesSpec): number[] {
+  const r = rng(spec.seed);
+  const f = 10 ** spec.decimals;
+  let drift = 0;
+  return Array.from({ length: DAY }, (_, i) => {
+    const d = i + 1;
+    // AR(1) noise: today's wobble carries some of yesterday's, so lines don't zig-zag.
+    drift = drift * 0.55 + (r() - 0.5) * 2 * spec.noise * 0.75;
+    let v = along(spec.path, d) + drift;
+    v = Math.min(spec.max ?? Infinity, Math.max(spec.min ?? -Infinity, v));
+    if (spec.pin?.[d] !== undefined) v = spec.pin[d];
     return Math.round(v * f) / f;
   });
 }
 
-const DAY = 142;
-const dayName = (d: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][((d - DAY) % 7 + 7) % 7];
-export const dayLabel = (d: number) => (d === DAY ? 'Today' : d === DAY - 1 ? 'Yesterday' : dayName(d));
+/** Weekly values from daily ones: the last 140 days split into 20 weeks ending today. */
+export function weeklyFrom(daily: (number | null)[], mode: 'avg' | 'sum', decimals: number): number[] {
+  const f = 10 ** Math.max(1, decimals);
+  return Array.from({ length: WEEKS }, (_, w) => {
+    const end = daily.length - (WEEKS - 1 - w) * 7;
+    const days = daily.slice(end - 7, end).filter((v): v is number => v !== null);
+    const total = days.reduce((a, b) => a + b, 0);
+    const v = mode === 'sum' ? total : total / Math.max(1, days.length);
+    return Math.round(v * f) / f;
+  });
+}
 
-function entriesFrom(daily: number[], times: string[], source: Entry['source'], every = 1, endDay = DAY): Entry[] {
+/** Recent entries from a daily series, newest first, skipping days with no reading. */
+function entriesFrom(daily: (number | null)[], times: string[], source: Entry['source'], uptoDay = DAY, count = 6): Entry[] {
   const out: Entry[] = [];
-  for (let i = daily.length - 1, k = 0; i >= 0 && out.length < 6; i -= every, k++) {
-    out.push({ day: endDay - (daily.length - 1 - i), time: times[k % times.length], source, value: daily[i] });
+  for (let d = uptoDay; d >= 1 && out.length < count; d--) {
+    const v = daily[d - 1];
+    if (v !== null) out.push({ day: d, time: times[out.length % times.length], source, value: v });
   }
   return out;
 }
@@ -156,32 +204,49 @@ function entriesFrom(daily: number[], times: string[], source: Entry['source'], 
 const scale5 = (key: string, label: string, low: string, high: string, labels?: string[]): LogField =>
   ({ kind: 'scale', key, label, lowLabel: low, highLabel: high, labels });
 
-/* ------------------------------------------------------------------ metrics */
+/* ------------------------------------------------------------------ daily series */
 
-const sleepDaily = trend(30, 6.6, 6.1, 0.35, 1);
-const moodDaily = trend(30, 4.1, 4, 0.6, 2, 0).map(v => Math.min(5, Math.max(1, v)));
-const fatigueDaily = trend(30, 2.4, 3, 0.6, 3, 0).map(v => Math.min(5, Math.max(1, v)));
-const stressDaily = trend(30, 2.4, 2, 0.6, 4, 0).map(v => Math.min(5, Math.max(1, v)));
-const hrDaily = trend(30, 59, 62, 1.6, 5, 0);
-const sysDaily = trend(30, 120, 124, 1.5, 6, 0);
-const hrvDaily = trend(30, 50, 48, 3, 8, 0);
-const spo2Daily = trend(30, 98, 98, 0.6, 9, 0);
-const exDaily = trend(30, 1.9, 0, 0.4, 10, 1).map((v, i) => (i % 7 === 6 ? 1.2 : Math.max(0, v)));
-const massDaily = trend(30, -0.8, -1.2, 0.15, 11, 1);
-const hydDaily = trend(30, 2.5, 1.4, 0.2, 12, 1);
-const boneDaily = trend(30, -0.6, -0.8, 0.03, 13, 2);
+// Behavioral: sleep slides down after launch, fatigue creeps up, mood and stress stay fairly steady.
+const sleepDaily = series({ seed: 1, path: [[1, 7.0], [30, 6.9], [90, 6.6], [142, 6.3]], noise: 0.45, decimals: 1, min: 4.5, max: 8.5, pin: { 142: 6.1 } });
+const moodDaily = series({ seed: 2, path: [[1, 4.3], [142, 3.9]], noise: 1.3, decimals: 0, min: 1, max: 5, pin: { 142: 4 } });
+const fatigueDaily = series({ seed: 3, path: [[1, 2.0], [60, 2.3], [142, 3.0]], noise: 1.3, decimals: 0, min: 1, max: 5, pin: { 141: 3, 142: 3 } });
+const stressDaily = series({ seed: 4, path: [[1, 2.4], [142, 2.1]], noise: 1.3, decimals: 0, min: 1, max: 5, pin: { 141: 2, 142: 2 } });
 
-// Make "today" match the designs exactly.
-sleepDaily[29] = 6.1; moodDaily[29] = 4; hrDaily[29] = 62; exDaily[29] = 0; hydDaily[29] = 1.4;
+// Cardiovascular: resting heart rate and blood pressure rise slowly in microgravity.
+const hrDaily = series({ seed: 5, path: [[1, 58], [142, 62]], noise: 1.6, decimals: 0, pin: { 142: 62 } });
+const sysContinuous = series({ seed: 6, path: [[1, 116], [80, 119], [142, 125]], noise: 1.8, decimals: 0 });
+const diaContinuous = series({ seed: 7, path: [[1, 76], [80, 78], [142, 82]], noise: 1.2, decimals: 0 });
+// Blood pressure is measured by hand every 3–4 days, so most days have no reading.
+const bpDays = new Set<number>();
+for (let d = 139, k = 0; d >= 1; d -= k % 2 ? 4 : 3, k++) bpDays.add(d);
+const sysDaily: (number | null)[] = sysContinuous.map((v, i) => (bpDays.has(i + 1) ? v : null));
+sysDaily[139 - 1] = 124; diaContinuous[139 - 1] = 82;
+const hrvDaily = series({ seed: 8, path: [[1, 53], [142, 48]], noise: 3, decimals: 0, pin: { 142: 48 } });
+const spo2Daily = series({ seed: 9, path: [[1, 98], [142, 98]], noise: 0.8, decimals: 0, min: 96, max: 99, pin: { 142: 98 } });
+
+// Body: about 13 h of exercise a week with one lighter recovery day.
+// Today only the morning resistance session is done; treadmill is later.
+const exRandom = rng(10);
+const exDaily = Array.from({ length: DAY }, (_, i) => {
+  const d = i + 1;
+  if (d === DAY) return 0.8;
+  const restDay = (DAY - d) % 7 === 4;                       // Wednesdays are recovery days
+  const h = restDay ? 0.7 + exRandom() * 0.3 : 2.2 + (exRandom() - 0.5) * 0.5 + (d > 30 ? 0 : -0.15);
+  return Math.round(h * 10) / 10;
+});
+const massDaily = series({ seed: 11, path: [[1, 0], [40, -0.6], [142, -1.2]], noise: 0.12, decimals: 1, pin: { 142: -1.2 } });
+// Hydration: today is only part-way through the day.
+const hydDaily = series({ seed: 12, path: [[1, 2.7], [142, 2.4]], noise: 0.25, decimals: 1, min: 1.6, max: 3.4, pin: { 142: 1.4 } });
+const boneDaily = series({ seed: 13, path: [[1, 0], [142, -0.8]], noise: 0.01, decimals: 2 });
 
 const metrics: Record<MetricId, Metric> = {
   sleep: {
     id: 'sleep', name: 'Sleep', area: 'behavioral', icon: 'moon', unit: 'h', decimals: 1, good: 'higher',
     range: { low: 7, high: 9, label: 'Earth 7–9 h', kind: 'Earth' }, preflight: 7.3,
-    weekly: trend(20, 7.1, 6.4, 0.25, 21), daily: sleepDaily,
+    weekly: weeklyFrom(sleepDaily, 'avg', 1), daily: sleepDaily,
     entries: entriesFrom(sleepDaily, ['06:30'], 'Auto'),
     chartTitle: 'Hours per night · weekly average',
-    suggestion: { text: 'Try to protect an 8.5 h sleep window tonight', link: { label: 'Message flight surgeon', to: '/alerts' } },
+    suggestion: { text: 'Try to protect an 8.5 h sleep window tonight' },
     logTitle: 'Update last night', logHint: 'Synced 06:30 · edit if it’s off',
     form: [
       { kind: 'stepper', key: 'value', label: 'Hours slept', unit: 'h', step: 0.1, min: 0, max: 14, decimals: 1 },
@@ -192,19 +257,19 @@ const metrics: Record<MetricId, Metric> = {
   mood: {
     id: 'mood', name: 'Mood', area: 'behavioral', icon: 'mood', unit: '/ 5', decimals: 0, good: 'higher',
     range: { low: 3.5, high: 4.5, label: 'Your usual 3.5–4.5', kind: 'Your usual' }, preflight: 4.2,
-    weekly: trend(20, 4.3, 3.9, 0.15, 22), daily: moodDaily,
+    weekly: weeklyFrom(moodDaily, 'avg', 0), daily: moodDaily,
     entries: entriesFrom(moodDaily, ['07:10', '07:30', '07:05', '07:20'], 'Manual'),
     chartTitle: 'Mood · weekly average',
     suggestion: { text: 'Mood entries stay private unless you share them', link: { label: 'Privacy settings', to: '/crew' } },
     logTitle: 'Update mood', logHint: 'Logged 07:10 · private',
     form: [scale5('value', 'How are you feeling?', 'Very low', 'Great'), { kind: 'options', key: 'stress', label: 'Stress', options: ['Low', 'Medium', 'High'] }],
-    inCheckIn: true, checkInQuestion: 'How are you feeling today?', checkInHelp: 'Answer for right now. This stays private to you and the flight surgeon.',
+    inCheckIn: true, checkInQuestion: 'How are you feeling today?', checkInHelp: 'Answer for right now. Mood entries stay private unless you choose to share them.',
   },
   fatigue: {
     id: 'fatigue', name: 'Fatigue', area: 'behavioral', icon: 'bolt', unit: '/ 5', decimals: 0, good: 'lower',
     range: { low: 1.5, high: 2.5, label: 'Your usual 1.5–2.5', kind: 'Your usual' }, preflight: 2,
-    weekly: trend(20, 2.2, 3.1, 0.2, 23), daily: fatigueDaily,
-    entries: entriesFrom(fatigueDaily.slice(0, 29), ['07:15', '07:40', '07:05', '07:20'], 'Manual', 1, DAY - 1),
+    weekly: weeklyFrom(fatigueDaily, 'avg', 0), daily: fatigueDaily,
+    entries: entriesFrom(fatigueDaily, ['07:15', '07:40', '07:05', '07:20'], 'Manual', DAY - 1),
     chartTitle: 'Fatigue · weekly average',
     suggestion: { text: 'Fatigue has been above your usual for 2 weeks, alongside short sleep', link: { label: 'View sleep', to: '/health/behavioral/sleep' } },
     logTitle: 'Update fatigue', logHint: 'Part of today’s check-in · private',
@@ -218,8 +283,8 @@ const metrics: Record<MetricId, Metric> = {
   stress: {
     id: 'stress', name: 'Stress', area: 'behavioral', icon: 'pulse', unit: '/ 5', decimals: 0, good: 'lower',
     range: { low: 1.5, high: 3, label: 'Your usual 1.5–3.0', kind: 'Your usual' }, preflight: 2,
-    weekly: trend(20, 2.5, 2.3, 0.2, 24), daily: stressDaily,
-    entries: entriesFrom(stressDaily.slice(0, 29), ['07:15', '07:40', '07:05', '07:20'], 'Manual', 1, DAY - 1),
+    weekly: weeklyFrom(stressDaily, 'avg', 0), daily: stressDaily,
+    entries: entriesFrom(stressDaily, ['07:15', '07:40', '07:05', '07:20'], 'Manual', DAY - 1),
     chartTitle: 'Stress · weekly average',
     suggestion: { text: 'Stress entries stay private unless you share them', link: { label: 'Privacy settings', to: '/crew' } },
     logTitle: 'Update stress', logHint: 'Part of today’s check-in · private',
@@ -228,12 +293,12 @@ const metrics: Record<MetricId, Metric> = {
       { kind: 'options', key: 'factor', label: 'What’s adding to it? (optional)', options: ['Workload', 'Sleep', 'Crew dynamics', 'Isolation', 'Missing home', 'Schedule changes'] },
     ],
     inCheckIn: true, checkInQuestion: 'How stressed do you feel today?',
-    checkInHelp: 'Think about the whole day so far. This stays private to you and the flight surgeon unless you choose to share it.',
+    checkInHelp: 'Think about the whole day so far. This stays private unless you choose to share it.',
   },
   heartRate: {
     id: 'heartRate', name: 'Heart rate', area: 'cardiovascular', icon: 'heart', unit: 'bpm', decimals: 0, good: 'range',
     range: { low: 60, high: 100, label: 'Earth 60–100', kind: 'Earth' }, preflight: 58,
-    weekly: trend(20, 58, 62, 0.8, 25, 0), daily: hrDaily,
+    weekly: weeklyFrom(hrDaily, 'avg', 0), daily: hrDaily,
     entries: entriesFrom(hrDaily, ['07:05'], 'Auto'),
     chartTitle: 'Resting heart rate · weekly average',
     suggestion: { text: 'Steady and within the Earth range', link: { label: 'Learn more', to: '/alerts' } },
@@ -247,15 +312,10 @@ const metrics: Record<MetricId, Metric> = {
   bloodPressure: {
     id: 'bloodPressure', name: 'Blood pressure', area: 'cardiovascular', icon: 'pulse', unit: 'mmHg', decimals: 0, good: 'lower',
     range: { low: 90, high: 120, label: 'Earth normal', kind: 'Earth' }, preflight: 116, preflight2: 76,
-    weekly: trend(20, 116, 124, 0.8, 26, 0), daily: sysDaily,
-    entries: [
-      { day: 139, time: '07:50', source: 'Manual', value: 124, value2: 82 },
-      { day: 136, time: '07:45', source: 'Manual', value: 123, value2: 81 },
-      { day: 132, time: '07:40', source: 'Manual', value: 121, value2: 80 },
-      { day: 129, time: '07:55', source: 'Manual', value: 119, value2: 78 },
-    ],
+    weekly: weeklyFrom(sysDaily, 'avg', 0), daily: sysDaily,
+    entries: entriesFrom(sysDaily, ['07:50', '07:45', '07:40', '07:55'], 'Manual').map(e => ({ ...e, value2: diaContinuous[e.day - 1] })),
     chartTitle: 'Systolic pressure · weekly average',
-    suggestion: { text: 'Rising for 3 weeks · re-measure today', link: { label: 'Message flight surgeon', to: '/alerts' } },
+    suggestion: { text: 'Rising for 3 weeks · re-measure today, seated after 5 minutes of rest' },
     logTitle: 'Log blood pressure', logHint: 'Due now · seated, after 5 min rest',
     form: [
       { kind: 'stepper', key: 'value', label: 'Systolic', unit: 'mmHg', step: 1, min: 70, max: 200 },
@@ -267,7 +327,7 @@ const metrics: Record<MetricId, Metric> = {
   hrv: {
     id: 'hrv', name: 'HRV', area: 'cardiovascular', icon: 'activity', unit: 'ms', decimals: 0, good: 'higher',
     range: { low: 40, high: 70, label: 'Your usual 40–70', kind: 'Your usual' }, preflight: 52,
-    weekly: trend(20, 53, 48, 1.5, 27, 0), daily: hrvDaily, entries: entriesFrom(hrvDaily, ['06:30'], 'Auto'),
+    weekly: weeklyFrom(hrvDaily, 'avg', 0), daily: hrvDaily, entries: entriesFrom(hrvDaily, ['06:30'], 'Auto'),
     chartTitle: 'Heart rate variability · weekly average',
     suggestion: { text: 'Slightly below pre-flight, still in your usual range' },
     logTitle: 'Update HRV', logHint: 'Synced 06:30 · from wrist tracker',
@@ -277,7 +337,7 @@ const metrics: Record<MetricId, Metric> = {
   spo2: {
     id: 'spo2', name: 'SpO₂', area: 'cardiovascular', icon: 'lungs', unit: '%', decimals: 0, good: 'higher',
     range: { low: 95, high: 100, label: 'Earth 95–100%', kind: 'Earth' }, preflight: 98,
-    weekly: trend(20, 98, 98, 0.4, 28, 0), daily: spo2Daily, entries: entriesFrom(spo2Daily, ['06:30'], 'Auto'),
+    weekly: weeklyFrom(spo2Daily, 'avg', 0), daily: spo2Daily, entries: entriesFrom(spo2Daily, ['06:30'], 'Auto'),
     chartTitle: 'Blood oxygen · weekly average',
     suggestion: { text: 'Steady and within the Earth range' },
     logTitle: 'Update SpO₂', logHint: 'Synced 06:30 · from finger sensor',
@@ -287,15 +347,17 @@ const metrics: Record<MetricId, Metric> = {
   exercise: {
     id: 'exercise', name: 'Exercise', area: 'body', icon: 'body', unit: 'h / wk', decimals: 1, good: 'range',
     range: { low: 12, high: 15, label: 'Target 12–15 h', kind: 'Target' }, preflight: 13,
-    weekly: trend(20, 12.6, 13.5, 0.6, 29), daily: exDaily,
-    entries: [
-      { day: 141, time: 'Resistance', source: 'Manual', value: 45 },
-      { day: 141, time: 'Treadmill', source: 'Manual', value: 30 },
-      { day: 140, time: 'Cycle', source: 'Manual', value: 30 },
-      { day: 140, time: 'Resistance', source: 'Manual', value: 45 },
-    ],
+    weekly: weeklyFrom(exDaily, 'sum', 1), daily: exDaily,
+    // Each day's total split into a 45-minute resistance session plus cardio.
+    entries: [{ day: DAY, time: 'Resistance', source: 'Manual', value: 48 } as Entry, ...[141, 140].flatMap((d, i): Entry[] => {
+      const mins = Math.round(exDaily[d - 1] * 60);
+      return [
+        { day: d, time: ['Treadmill', 'Cycle', 'Treadmill'][i], source: 'Manual', value: Math.max(0, mins - 45) },
+        { day: d, time: 'Resistance', source: 'Manual', value: Math.min(45, mins) },
+      ];
+    })],
     chartTitle: 'Hours per week',
-    suggestion: { text: 'Resistance at 14:00, treadmill at 17:30', link: { label: 'Open schedule', to: '/alerts' } },
+    suggestion: { text: 'Resistance done this morning · treadmill at 17:30' },
     logTitle: 'Log a session', logHint: 'Counts toward this week’s target',
     form: [
       { kind: 'options', key: 'type', label: 'Type', options: ['Resistance', 'Treadmill', 'Cycle'] },
@@ -306,7 +368,7 @@ const metrics: Record<MetricId, Metric> = {
   bodyMass: {
     id: 'bodyMass', name: 'Body mass', area: 'body', icon: 'body', unit: 'kg', decimals: 1, good: 'range',
     range: { low: -2, high: 1, label: 'Within 2 kg of pre-flight', kind: 'Target' }, preflight: 0,
-    weekly: trend(20, 0, -1.2, 0.15, 30), daily: massDaily, entries: entriesFrom(massDaily, ['07:00'], 'Manual', 3),
+    weekly: weeklyFrom(massDaily, 'avg', 1), daily: massDaily, entries: entriesFrom(massDaily, ['07:00'], 'Manual'),
     chartTitle: 'Change vs pre-flight · weekly average',
     suggestion: { text: 'Mass is within 2 kg of pre-flight. Keep meals on schedule.' },
     logTitle: 'Log body mass', logHint: 'Due by 20:00 GMT · mass device',
@@ -316,7 +378,7 @@ const metrics: Record<MetricId, Metric> = {
   hydration: {
     id: 'hydration', name: 'Hydration', area: 'body', icon: 'drop', unit: 'L', decimals: 1, good: 'higher',
     range: { low: 2.5, high: 3.5, label: 'Target 2.5 L+', kind: 'Target' }, preflight: 2.5,
-    weekly: trend(20, 2.6, 2.4, 0.1, 31), daily: hydDaily,
+    weekly: weeklyFrom(hydDaily, 'avg', 1), daily: hydDaily,
     entries: [
       { day: 142, time: '12:40', source: 'Manual', value: 0.25 },
       { day: 142, time: '10:15', source: 'Manual', value: 0.5 },
@@ -332,7 +394,7 @@ const metrics: Record<MetricId, Metric> = {
   boneDensity: {
     id: 'boneDensity', name: 'Bone density', area: 'body', icon: 'bone', unit: '% est.', decimals: 1, good: 'range',
     range: { low: -1.5, high: 0.5, label: 'Expected loss under 1.5%', kind: 'Target' }, preflight: 0,
-    weekly: trend(20, 0, -0.8, 0.02, 32, 2), daily: boneDaily, entries: entriesFrom(boneDaily, ['Model'], 'Auto', 7),
+    weekly: weeklyFrom(boneDaily, 'avg', 2), daily: boneDaily, entries: entriesFrom(boneDaily, ['Model'], 'Auto'),
     chartTitle: 'Estimated change vs pre-flight',
     suggestion: { text: 'Estimate from your exercise load. Confirmed by scan after landing.' },
     logTitle: 'Bone density', logHint: 'Estimated automatically',
@@ -346,7 +408,7 @@ const checkInDone: MetricId[] = ['sleep', 'heartRate', 'mood', 'hydration'];
 /* ------------------------------------------------------------------ everything else */
 
 export const initialData: AppData = {
-  version: 1,
+  version: 3,
   astronaut: { initials: 'JH', name: 'You', role: 'Flight engineer', missionDay: DAY, dateLabel: 'Sunday, 15 Nov', expedition: 'Expedition 74' },
   points: 1180,
   pointsThisWeek: 340,
@@ -360,15 +422,16 @@ export const initialData: AppData = {
   ],
   radiation: {
     missionDose: 58, missionLimit: 150, projected: 112,
+    // Only dosimeter readings count toward the Radiation score. Solar activity is a
+    // space weather forecast the astronaut can't change, so it lives in Alerts instead.
     rows: [
       { name: 'Daily dose rate', detail: 'Typical for low Earth orbit', value: '0.42 mSv', meta: 'Per day · 7-day avg', status: 'nominal' },
-      { name: 'Solar activity', detail: 'Class M flare forecast · stay near shielded module if alerted', value: 'Elevated', meta: 'Updated 5 h ago', status: 'caution' },
     ],
   },
   alerts: [
     { id: 'bp', title: 'Blood pressure rising', detail: '+8 mmHg above your pre-flight baseline and rising for 3 weeks. Re-measure seated after 5 minutes of rest.', category: 'Health', severity: 'caution', time: '2 h', group: 'Needs attention',
       link: { label: '+8 mmHg vs pre-flight', to: '/health/cardiovascular/bloodPressure' },
-      actions: [{ label: 'Log blood pressure', to: '/health/cardiovascular/bloodPressure', kind: 'primary' }, { label: 'Message flight surgeon', kind: 'ghost' }] },
+      actions: [{ label: 'Log blood pressure', to: '/health/cardiovascular/bloodPressure', kind: 'primary' }] },
     { id: 'solar', title: 'Solar activity elevated', detail: 'Class M flare forecast for the next 24 h. Stay near the shielded module if a radiation alert sounds.', category: 'Environment', severity: 'caution', time: '5 h', group: 'Needs attention',
       link: { label: 'Stay near shielded module if alerted', to: '/health/radiation' },
       actions: [{ label: 'View radiation', to: '/health/radiation', kind: 'secondary' }] },
@@ -432,12 +495,12 @@ export const initialData: AppData = {
   rules: { checkIn: 50, perLog: 10, recoveryDay: 20, crewGoal: 100 },
 };
 
-export const AREAS: { id: AreaId; name: string; title: string; summary: string; score: number; metrics: MetricId[]; view: 'radar' | 'list' }[] = [
-  { id: 'behavioral', name: 'Behavioral', title: 'Behavioral health', summary: 'Sleep · mood · fatigue · stress', score: 62, metrics: ['sleep', 'mood', 'fatigue', 'stress'], view: 'radar' },
-  { id: 'cardiovascular', name: 'Cardiovascular', title: 'Cardiovascular health', summary: 'Heart rate · BP · HRV · SpO₂', score: 74, metrics: ['heartRate', 'bloodPressure', 'hrv', 'spo2'], view: 'radar' },
-  { id: 'body', name: 'Body', title: 'Body', summary: 'Exercise · mass · hydration · bone', score: 92, metrics: ['exercise', 'bodyMass', 'hydration', 'boneDensity'], view: 'radar' },
-  { id: 'vision', name: 'Vision', title: 'Vision', summary: '2 metrics · shown as a list', score: 100, metrics: [], view: 'list' },
-  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Dose · solar alerts · shown as a list', score: 85, metrics: [], view: 'list' },
+export const AREAS: { id: AreaId; name: string; title: string; summary: string; metrics: MetricId[]; view: 'radar' | 'list' }[] = [
+  { id: 'behavioral', name: 'Behavioral', title: 'Behavioral health', summary: 'Sleep · mood · fatigue · stress', metrics: ['sleep', 'mood', 'fatigue', 'stress'], view: 'radar' },
+  { id: 'cardiovascular', name: 'Cardiovascular', title: 'Cardiovascular health', summary: 'Heart rate · BP · HRV · SpO₂', metrics: ['heartRate', 'bloodPressure', 'hrv', 'spo2'], view: 'radar' },
+  { id: 'body', name: 'Body', title: 'Body', summary: 'Exercise · mass · hydration · bone', metrics: ['exercise', 'bodyMass', 'hydration', 'boneDensity'], view: 'radar' },
+  { id: 'vision', name: 'Vision', title: 'Vision', summary: '2 metrics · shown as a list', metrics: [], view: 'list' },
+  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Mission dose · dose rate · shown as a list', metrics: [], view: 'list' },
 ];
 
 /** The 6 daily check-in items, in the order they're asked. */

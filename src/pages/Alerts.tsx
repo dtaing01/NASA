@@ -9,7 +9,7 @@ const GROUPS: Alert['group'][] = ['Needs attention', 'Today', 'Earlier'];
 type Filter = 'All' | Alert['category'];
 
 export default function Alerts() {
-  const { data, notify } = useStore();
+  const { data } = useStore();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('All');
   const shown = data.alerts.filter(a => filter === 'All' || a.category === filter);
@@ -20,10 +20,10 @@ export default function Alerts() {
     <PageShell
       main={
         <>
-          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/behavioral' }, { label: 'Alerts' }]} />
+          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/overview' }, { label: 'Alerts' }]} />
           <header className="stack-4">
             <h1 className="t-h2">Alerts</h1>
-            <p className="t-body-sm c-secondary">{attention} need attention  ·  the flight surgeon sees warnings automatically</p>
+            <p className="t-body-sm c-secondary">{attention} need attention</p>
           </header>
           <div className="chips">
             {(['All', 'Health', 'Environment', 'Mission'] as Filter[]).map(f => (
@@ -44,7 +44,7 @@ export default function Alerts() {
                       {a.actions && (
                         <div className="row gap-8 actions wrap">
                           {a.actions.map(act => (
-                            <Button key={act.label} kind={act.kind} onClick={() => (act.to ? navigate(act.to) : notify('Message sent to the flight surgeon (demo)'))}>{act.label}</Button>
+                            <Button key={act.label} kind={act.kind} onClick={() => act.to && navigate(act.to)}>{act.label}</Button>
                           ))}
                         </div>
                       )}
@@ -60,7 +60,7 @@ export default function Alerts() {
       side={
         <Card title="Alert settings" className="list-card">
           {SETTINGS.map(([a, b]) => <div key={a} className="list-row"><span className="t-body-sm grow">{a}</span><span className="t-body-sm c-secondary">{b}</span></div>)}
-          <p className="note t-caption c-secondary">Warnings (red) always alert, even in quiet hours, and go to the flight surgeon.</p>
+          <p className="note t-caption c-secondary">Warnings (red) always alert, even in quiet hours.</p>
         </Card>
       }
     />

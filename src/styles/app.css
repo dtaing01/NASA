@@ -105,7 +105,7 @@ hr { border: 0; border-top: 1px solid var(--color-border-default); margin: 12px 
 .dropdown-menu { right: 0; top: calc(100% + 8px); width: 320px; padding: 8px; }
 .dropdown-opt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-control); width: 100%; }
 .dropdown-opt:hover, .dropdown-opt-on { background: var(--color-bg-raised); }
-.radar { position: relative; height: 440px; width: 100%; overflow: hidden; }
+.radar { position: relative; height: 456px; width: 100%; overflow: hidden; }
 .radar > svg { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
 .radar-point { cursor: pointer; }
 .axis { position: absolute; background: var(--color-bg-raised); border-radius: var(--radius-control); padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; white-space: nowrap; }
@@ -136,6 +136,11 @@ hr { border: 0; border-top: 1px solid var(--color-border-default); margin: 12px 
 .segmented { display: flex; gap: 4px; padding: 4px; background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-pill); }
 .segmented button { padding: 6px 14px; border-radius: var(--radius-pill); color: var(--color-text-secondary); white-space: nowrap; }
 .segmented .seg-on { background: var(--color-bg-raised); color: var(--color-text-primary); }
+.segmented-sm { padding: 3px; }
+.segmented-sm button { padding: 3px 12px; }
+.segmented button:disabled { opacity: .4; cursor: not-allowed; }
+.chart-card { gap: 12px; }
+.chart-legend { margin-top: -4px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 @media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
 .tile { background: var(--color-bg-surface); border-radius: var(--radius-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }

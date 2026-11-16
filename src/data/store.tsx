@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CHECK_IN_ORDER, initialData, type AppData, type Metric, type MetricId } from './mockData';
+import { AREAS, CHECK_IN_ORDER, initialData, weeklyFrom, type AppData, type AreaId, type Metric, type MetricId } from './mockData';
 
 const STORAGE_KEY = 'starpulse-demo-data';
 
@@ -14,8 +14,8 @@ export function fmt(v: number, decimals = 0) {
 /** The value shown as "today / latest" for a metric. */
 export function latest(m: Metric): number {
   if (m.id === 'exercise') return m.weekly[m.weekly.length - 1];
-  if (m.id === 'bloodPressure') return m.entries[0]?.value ?? m.daily[m.daily.length - 1];
-  return m.daily[m.daily.length - 1];
+  if (m.id === 'bloodPressure') return m.entries[0]?.value ?? 0;
+  return m.daily[m.daily.length - 1] ?? m.entries[0]?.value ?? 0;
 }
 
 export function latestLabel(m: Metric): string {
@@ -32,6 +32,34 @@ export function statusOf(m: Metric, v = latest(m)): Status {
 
 export const statusWord = (s: Status, m?: Metric) =>
   s === 'good' ? 'Good' : m?.id === 'hydration' && s === 'low' ? 'Behind' : s === 'low' ? 'Low' : 'High';
+
+/**
+ * Metric score out of 100: 100 inside its healthy range, dropping the further
+ * outside it the reading is (down to 50 at one range-width away).
+ */
+export function metricScore(m: Metric, v = latest(m)) {
+  const { low, high } = m.range;
+  const dist = v < low ? low - v : v > high ? v - high : 0;
+  return 100 - 50 * Math.min(1, dist / (high - low));
+}
+
+/**
+ * Area score out of 100, used by the overview radar and the Area dropdown.
+ * Radar areas average their metric scores. List areas lose 15 per caution item.
+ */
+export function areaScore(data: AppData, id: AreaId): { score: number; off: number; total: number } {
+  const area = AREAS.find(a => a.id === id)!;
+  if (area.view === 'radar') {
+    const ms = area.metrics.map(m => data.metrics[m]);
+    const off = ms.filter(m => statusOf(m) !== 'good').length;
+    return { score: Math.round(average(ms.map(m => metricScore(m)))), off, total: ms.length };
+  }
+  const rows = id === 'vision' ? data.vision : data.radiation.rows;
+  const off = rows.filter(r => r.status !== 'nominal').length;
+  return { score: 100 - off * 15, off, total: rows.length };
+}
+
+export const SCORE_HEALTHY = 80;
 
 export function average(xs: number[]) { return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); }
 
@@ -104,20 +132,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (id === 'hydration') {
         const litres = v / 1000;
-        m.daily[last] = Math.round((m.daily[last] + litres) * 100) / 100;
+        m.daily[last] = Math.round(((m.daily[last] ?? 0) + litres) * 100) / 100;
         m.entries.unshift({ day, time, source: 'Manual', value: litres });
       } else if (id === 'exercise') {
         const hours = v / 60;
-        m.daily[last] = Math.round((m.daily[last] + hours) * 10) / 10;
-        m.weekly[m.weekly.length - 1] = Math.round((m.weekly[m.weekly.length - 1] + hours) * 10) / 10;
+        m.daily[last] = Math.round(((m.daily[last] ?? 0) + hours) * 10) / 10;
         m.entries.unshift({ day, time: String(values.type ?? 'Session'), source: 'Manual', value: v });
       } else {
         m.daily[last] = v;
         m.entries = m.entries.filter(e => !(e.day === day && e.source === 'Auto'));
         m.entries.unshift({ day, time, source: 'Manual', value: v, value2: values.value2 !== undefined ? Number(values.value2) : undefined });
-        const wk = m.weekly.length - 1;
-        m.weekly[wk] = Math.round(((m.weekly[wk] * 6 + v) / 7) * 10 ** m.decimals) / 10 ** m.decimals;
       }
+      // Weekly values are always recalculated from the daily ones so the two charts agree.
+      m.weekly = weeklyFrom(m.daily, id === 'exercise' ? 'sum' : 'avg', m.decimals);
       m.entries = m.entries.slice(0, 8);
 
       earned += d.rules.perLog;
