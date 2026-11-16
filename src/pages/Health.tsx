@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon';
+import { EnvironmentPanel } from './Environment';
 import Radar, { metricAxis, type RadarAxis } from '../components/Radar';
 import { Button, PageShell, ProgressBar } from '../components/ui';
 import { AlertsCard, StreakCard } from '../components/SideCards';
@@ -186,6 +187,7 @@ export default function Health() {
               </div>
             )}
           </section>
+          {area.id === 'overview' && <EnvironmentPanel />}
         </>
       }
       side={<><StreakCard /><AlertsCard /></>}
