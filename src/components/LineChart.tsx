@@ -23,10 +23,12 @@ export interface ChartProps {
   unit: string;
   tipLabel: string;           // e.g. "This week"
   tipValue?: string;          // override for the last point (blood pressure)
+  strokeWidth?: number;
+  adaptive?: boolean;
   domain?: [number, number];  // fixed y-axis, e.g. [1, 5] for 1–5 scales
 }
 
-export default function LineChart({ values: raw, labels, band, baseline, decimals, unit, tipLabel, tipValue, domain }: ChartProps) {
+export default function LineChart({ values: raw, labels, band, baseline, decimals, unit, tipLabel, tipValue, domain, strokeWidth = 2.5, adaptive = false }: ChartProps) {
   const [hover, setHover] = useState<number | null>(null);
   // Indexes that have a reading. Hover and the 'now' dot only land on these.
   const has = raw.map((v, i) => (v === null ? -1 : i)).filter(i => i >= 0);
@@ -44,10 +46,30 @@ export default function LineChart({ values: raw, labels, band, baseline, decimal
   const y = (v: number) => B - ((v - lo) / (hi - lo)) * (B - T);
   const x = (i: number) => L + 8 + (i / Math.max(1, values.length - 1)) * (RGT - L - 16);
   const clamp = (v: number) => Math.max(lo, Math.min(hi, v));
-  const path = has.map((i, k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)},${y(values[i]).toFixed(1)}`).join(' ');
+  // Preserve the original series for summaries and hover; reduce only SVG vertices.
+  // Per-pixel min/max buckets retain visible spikes on narrow displays.
+  const plotIndexes = (() => {
+    if (!adaptive || has.length <= 300) return has;
+    const buckets = 220;
+    const picked = new Set<number>();
+    for (let b = 0; b < buckets; b++) {
+      const start = Math.floor(b * has.length / buckets);
+      const end = Math.min(has.length, Math.floor((b + 1) * has.length / buckets));
+      if (start >= end) continue;
+      let low = has[start], high = has[start];
+      for (let j = start + 1; j < end; j++) {
+        const i = has[j];
+        if (values[i] < values[low]) low = i;
+        if (values[i] > values[high]) high = i;
+      }
+      picked.add(has[start]); picked.add(low); picked.add(high); picked.add(has[end - 1]);
+    }
+    return Array.from(picked).sort((a, b) => a - b);
+  })();
+  const path = plotIndexes.map((i, k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)},${y(values[i]).toFixed(1)}`).join(' ');
   const last = values.length - 1;
   const lastReading = has[has.length - 1] ?? last;
-  const nearest = (i: number) => has.reduce((best, h) => (Math.abs(h - i) < Math.abs(best - i) ? h : best), lastReading);
+  const nearest = (i: number) => { let lo = 0, hi = has.length - 1; while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (has[mid] < i) lo = mid + 1; else hi = mid; } const right = has[lo] ?? lastReading; const left = has[Math.max(0, lo - 1)] ?? right; return Math.abs(left - i) < Math.abs(right - i) ? left : right; };
   const active = hover ?? lastReading;
   const tickDecimals = ticks.some(t => t % 1 !== 0) ? 1 : 0;
   const xLabels = values.length <= 8 ? values.map((_, i) => i) : [0, Math.round(last * 0.21), Math.round(last * 0.47), Math.round(last * 0.74), last];
@@ -79,7 +101,7 @@ export default function LineChart({ values: raw, labels, band, baseline, decimal
         </g>
       ))}
       {baseline !== undefined && <line x1={L} x2={RGT} y1={y(baseline)} y2={y(baseline)} stroke="var(--color-chart-reference)" strokeWidth="1.5" strokeDasharray="6 5" />}
-      <path d={path} fill="none" stroke="var(--color-chart-series-1)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={path} fill="none" stroke="var(--color-chart-series-1)" strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
       {has.length < raw.length && has.map(i => <circle key={i} cx={x(i)} cy={y(values[i])} r="3.5" fill="var(--color-chart-series-1)" />)}
       {hover !== null && <line x1={x(active)} x2={x(active)} y1={T} y2={B} stroke="var(--color-border-strong)" strokeWidth="1" strokeDasharray="3 3" />}
       <circle cx={x(active)} cy={y(values[active])} r="6" fill="var(--color-chart-series-1)" stroke="var(--color-bg-surface)" strokeWidth="3" />
