@@ -20,7 +20,7 @@ export default function Alerts() {
     <PageShell
       main={
         <>
-          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/behavioral' }, { label: 'Alerts' }]} />
+          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/overview' }, { label: 'Alerts' }]} />
           <header className="stack-4">
             <h1 className="t-h2">Alerts</h1>
             <p className="t-body-sm c-secondary">{attention} need attention  ·  the flight surgeon sees warnings automatically</p>

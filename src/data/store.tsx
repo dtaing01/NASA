@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CHECK_IN_ORDER, initialData, type AppData, type Metric, type MetricId } from './mockData';
+import { AREAS, CHECK_IN_ORDER, initialData, type AppData, type AreaId, type Metric, type MetricId } from './mockData';
 
 const STORAGE_KEY = 'starpulse-demo-data';
 
@@ -32,6 +32,24 @@ export function statusOf(m: Metric, v = latest(m)): Status {
 
 export const statusWord = (s: Status, m?: Metric) =>
   s === 'good' ? 'Good' : m?.id === 'hydration' && s === 'low' ? 'Behind' : s === 'low' ? 'Low' : 'High';
+
+/**
+ * Area score out of 100, used by the overview radar and the Area dropdown.
+ * Each metric in range counts 100, each one out of range 55. List areas lose 15 per caution item.
+ */
+export function areaScore(data: AppData, id: AreaId): { score: number; off: number; total: number } {
+  const area = AREAS.find(a => a.id === id)!;
+  if (area.view === 'radar') {
+    const st = area.metrics.map(m => statusOf(data.metrics[m]));
+    const off = st.filter(s => s !== 'good').length;
+    return { score: Math.round(average(st.map(s => (s === 'good' ? 100 : 55)))), off, total: st.length };
+  }
+  const rows = id === 'vision' ? data.vision : data.radiation.rows;
+  const off = rows.filter(r => r.status !== 'nominal').length;
+  return { score: 100 - off * 15, off, total: rows.length };
+}
+
+export const SCORE_HEALTHY = 80;
 
 export function average(xs: number[]) { return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); }
 

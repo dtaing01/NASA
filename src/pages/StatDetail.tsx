@@ -27,7 +27,7 @@ export default function StatDetail() {
   const [range, setRange] = useState<Range>('Mission');
   const metric = data.metrics[metricId as MetricId];
   const area = AREAS.find(a => a.id === areaId);
-  if (!metric || !area || metric.area !== area.id) return <Navigate to="/health/behavioral" replace />;
+  if (!metric || !area || metric.area !== area.id) return <Navigate to="/health/overview" replace />;
 
   const m = metric;
   const status = statusOf(m);
@@ -61,7 +61,7 @@ export default function StatDetail() {
     <PageShell
       main={
         <>
-          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/behavioral' }, { label: area.name, to: `/health/${area.id}` }, { label: m.name }]} />
+          <Breadcrumbs items={[{ label: 'Health tracking', to: '/health/overview' }, { label: area.name, to: `/health/${area.id}` }, { label: m.name }]} />
           <div className="between wrap">
             <div className="row gap-12">
               <Icon name={m.icon} size={28} />

@@ -105,7 +105,7 @@ hr { border: 0; border-top: 1px solid var(--color-border-default); margin: 12px 
 .dropdown-menu { right: 0; top: calc(100% + 8px); width: 320px; padding: 8px; }
 .dropdown-opt { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-control); width: 100%; }
 .dropdown-opt:hover, .dropdown-opt-on { background: var(--color-bg-raised); }
-.radar { position: relative; height: 440px; width: 100%; overflow: hidden; }
+.radar { position: relative; height: 456px; width: 100%; overflow: hidden; }
 .radar > svg { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
 .radar-point { cursor: pointer; }
 .axis { position: absolute; background: var(--color-bg-raised); border-radius: var(--radius-control); padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; white-space: nowrap; }

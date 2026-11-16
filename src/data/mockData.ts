@@ -432,12 +432,12 @@ export const initialData: AppData = {
   rules: { checkIn: 50, perLog: 10, recoveryDay: 20, crewGoal: 100 },
 };
 
-export const AREAS: { id: AreaId; name: string; title: string; summary: string; score: number; metrics: MetricId[]; view: 'radar' | 'list' }[] = [
-  { id: 'behavioral', name: 'Behavioral', title: 'Behavioral health', summary: 'Sleep · mood · fatigue · stress', score: 62, metrics: ['sleep', 'mood', 'fatigue', 'stress'], view: 'radar' },
-  { id: 'cardiovascular', name: 'Cardiovascular', title: 'Cardiovascular health', summary: 'Heart rate · BP · HRV · SpO₂', score: 74, metrics: ['heartRate', 'bloodPressure', 'hrv', 'spo2'], view: 'radar' },
-  { id: 'body', name: 'Body', title: 'Body', summary: 'Exercise · mass · hydration · bone', score: 92, metrics: ['exercise', 'bodyMass', 'hydration', 'boneDensity'], view: 'radar' },
-  { id: 'vision', name: 'Vision', title: 'Vision', summary: '2 metrics · shown as a list', score: 100, metrics: [], view: 'list' },
-  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Dose · solar alerts · shown as a list', score: 85, metrics: [], view: 'list' },
+export const AREAS: { id: AreaId; name: string; title: string; summary: string; metrics: MetricId[]; view: 'radar' | 'list' }[] = [
+  { id: 'behavioral', name: 'Behavioral', title: 'Behavioral health', summary: 'Sleep · mood · fatigue · stress', metrics: ['sleep', 'mood', 'fatigue', 'stress'], view: 'radar' },
+  { id: 'cardiovascular', name: 'Cardiovascular', title: 'Cardiovascular health', summary: 'Heart rate · BP · HRV · SpO₂', metrics: ['heartRate', 'bloodPressure', 'hrv', 'spo2'], view: 'radar' },
+  { id: 'body', name: 'Body', title: 'Body', summary: 'Exercise · mass · hydration · bone', metrics: ['exercise', 'bodyMass', 'hydration', 'boneDensity'], view: 'radar' },
+  { id: 'vision', name: 'Vision', title: 'Vision', summary: '2 metrics · shown as a list', metrics: [], view: 'list' },
+  { id: 'radiation', name: 'Radiation', title: 'Radiation', summary: 'Dose · solar alerts · shown as a list', metrics: [], view: 'list' },
 ];
 
 /** The 6 daily check-in items, in the order they're asked. */

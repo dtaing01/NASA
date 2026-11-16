@@ -1,14 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon';
-import Radar from '../components/Radar';
+import Radar, { metricAxis, type RadarAxis } from '../components/Radar';
 import { Button, PageShell, ProgressBar } from '../components/ui';
 import { AlertsCard, StreakCard } from '../components/SideCards';
 import { useCheckIn } from '../components/CheckInContext';
-import { fmt, statusOf, useStore } from '../data/store';
-import { AREAS, CHECK_IN_ORDER, type AreaId } from '../data/mockData';
+import { SCORE_HEALTHY, areaScore, average, fmt, statusOf, useStore } from '../data/store';
+import { AREAS, CHECK_IN_ORDER, type AreaId, type MetricId } from '../data/mockData';
 
-const BANNERS: Record<AreaId, { text: string; link: string; to: string }> = {
+type ViewId = AreaId | 'overview';
+
+const OVERVIEW = {
+  id: 'overview' as const, name: 'All areas', title: 'Health overview', summary: 'One axis per area · tap to drill in',
+  metrics: [] as MetricId[], view: 'overview' as const,
+};
+const VIEWS = [OVERVIEW, ...AREAS];
+
+/** Scores run 40–100 from center to edge so differences between areas are easy to see. */
+const scoreToRadius = (score: number) => Math.max(0.05, Math.min(1, (score - 40) / 60));
+
+const BANNERS: Record<ViewId, { text: string; link: string; to: string }> = {
+  overview: { text: 'Sleep has been below the Earth range for 6 weeks', link: 'View sleep', to: '/health/behavioral/sleep' },
   behavioral: { text: 'Sleep has been below the Earth range for 6 weeks', link: 'View sleep', to: '/health/behavioral/sleep' },
   cardiovascular: { text: 'Blood pressure has been rising for 3 weeks · re-measure today', link: 'View blood pressure', to: '/health/cardiovascular/bloodPressure' },
   body: { text: 'Hydration is behind today', link: 'View hydration', to: '/health/body/hydration' },
@@ -44,7 +56,7 @@ function ListRow({ name, detail, value, meta, status, to }: { name: string; deta
 
 export default function Health() {
   const { area: areaParam } = useParams();
-  const area = AREAS.find(a => a.id === areaParam);
+  const area = VIEWS.find(a => a.id === areaParam);
   const { data, pendingCheckIn } = useStore();
   const { open: openCheckIn } = useCheckIn();
   const navigate = useNavigate();
@@ -57,12 +69,21 @@ export default function Health() {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  if (!area) return <Navigate to="/health/behavioral" replace />;
+  if (!area) return <Navigate to="/health/overview" replace />;
 
   const total = CHECK_IN_ORDER.length;
   const done = total - pendingCheckIn.length;
   const complete = data.checkIn.completedToday;
   const metrics = area.metrics.map(id => data.metrics[id]);
+  const overviewAxes: RadarAxis[] = AREAS.map(a => {
+    const { score, off, total } = areaScore(data, a.id);
+    return {
+      key: a.id, name: a.name, value: scoreToRadius(score), to: `/health/${a.id}`,
+      status: score < SCORE_HEALTHY ? 'low' : 'good',
+      detail: `${score}  ·  ${off === 0 ? 'all in range' : score < SCORE_HEALTHY ? `${off} of ${total} need attention` : `${off} to watch`}`,
+    };
+  });
+  const overallScore = Math.round(average(AREAS.map(a => areaScore(data, a.id).score)));
   const banner = BANNERS[area.id];
   // Hide the banner once the thing it warns about is back in range.
   const hyd = data.metrics.hydration;
@@ -101,7 +122,8 @@ export default function Health() {
               <div className="stack-2">
                 <h2 className="t-h5">{area.title}</h2>
                 <p className="t-caption c-muted">
-                  {area.view === 'radar' ? 'Each axis scaled to its healthy range · inside = low, outside = high'
+                  {area.view === 'overview' ? `Each axis is an area score out of 100 · ${SCORE_HEALTHY}+ is healthy (shaded) · center = 40`
+                    : area.view === 'radar' ? 'Each axis scaled to its healthy range · inside = low, outside = high'
                     : area.id === 'vision' ? 'Measured at scheduled eye exams, so this area updates less often'
                     : 'From your dosimeter and space weather forecasts'}
                 </p>
@@ -113,12 +135,12 @@ export default function Health() {
                 </button>
                 {dropdown && (
                   <ul className="popover dropdown-menu" role="listbox">
-                    {AREAS.map(a => (
+                    {VIEWS.map(a => (
                       <li key={a.id}>
                         <button type="button" role="option" aria-selected={a.id === area.id} className={`dropdown-opt ${a.id === area.id ? 'dropdown-opt-on' : ''}`}
                           onClick={() => { setDropdown(false); navigate(`/health/${a.id}`); }}>
                           <span className="grow"><span className="t-strong block">{a.name}</span><span className="t-caption c-secondary block">{a.summary}</span></span>
-                          <span className="t-h5">{a.score}</span>
+                          <span className="t-h5">{a.view === 'overview' ? overallScore : areaScore(data, a.id).score}</span>
                         </button>
                       </li>
                     ))}
@@ -127,15 +149,17 @@ export default function Health() {
               </div>
             </header>
 
-            {area.view === 'radar' && (
+            {area.view !== 'list' && (
               <>
-                <Radar metrics={metrics} />
+                {area.view === 'overview'
+                  ? <Radar axes={overviewAxes} band={[scoreToRadius(SCORE_HEALTHY), 1]} label="Radar chart of the score for each health area" />
+                  : <Radar axes={metrics.map(metricAxis)} band={[0.25, 0.75]} target={0.5} label="Radar chart of this area’s metrics against their healthy ranges" />}
                 <footer className="between">
                   <div className="row gap-16 t-caption c-secondary">
                     <span className="row gap-6"><i className="legend-line" />Current</span>
                     <span className="row gap-6"><i className="legend-band" />Healthy range</span>
                   </div>
-                  <span className="t-caption c-muted">Select a metric to see its graph</span>
+                  <span className="t-caption c-muted">{area.view === 'overview' ? 'Select an area to see its metrics' : 'Select a metric to see its graph'}</span>
                 </footer>
               </>
             )}
