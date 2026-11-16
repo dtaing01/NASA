@@ -61,6 +61,25 @@ export function areaScore(data: AppData, id: AreaId): { score: number; off: numb
 
 export const SCORE_HEALTHY = 80;
 
+/**
+ * One value per mission day (day 1 → today). The mock data only stores 20 weekly
+ * averages plus the last 30 days, so earlier days are filled in from the weekly
+ * averages with a small, fixed wobble. The last 30 days are the real stored values.
+ */
+export function missionDaily(m: Metric, today: number): number[] {
+  const out: number[] = [];
+  const f = 10 ** m.decimals;
+  // Exercise is stored as hours per week; its daily values are hours per day.
+  const scale = m.id === 'exercise' ? 1 / 7 : 1;
+  const spread = (m.range.high - m.range.low) * 0.12 * scale;
+  for (let d = 1; d <= today; d++) {
+    const w = Math.min(m.weekly.length - 1, Math.floor((d - 1) / 7));
+    const x = Math.sin(d * 12.9898 + m.id.length * 78.233) * 43758.5453;
+    out.push(Math.round((m.weekly[w] * scale + (x - Math.floor(x) - 0.5) * 2 * spread) * f) / f);
+  }
+  return [...out.slice(0, today - m.daily.length), ...m.daily];
+}
+
 export function average(xs: number[]) { return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); }
 
 /* ------------------------------------------------------------------ store */

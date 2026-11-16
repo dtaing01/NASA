@@ -32,7 +32,8 @@ export default function LineChart({ values, labels, band, baseline, decimals, un
   // Only stretch the axis to a band edge when that edge is close to the data.
   const all = [...core, ...(band ? [band.low, band.high].filter(e => e >= cMin - reach && e <= cMax + reach) : [])];
   const pad = (Math.max(...all) - Math.min(...all)) * 0.12 || 1;
-  const ticks = niceTicks(Math.min(...all) - pad * 0.3, Math.max(...all) + pad * 0.3);
+  const floor = Math.min(...all) >= 0 ? 0 : -Infinity; // don't show negative gridlines for values that can't go below 0
+  const ticks = niceTicks(Math.max(floor, Math.min(...all) - pad * 0.3), Math.max(...all) + pad * 0.3);
   const lo = ticks[0], hi = ticks[ticks.length - 1];
   const y = (v: number) => B - ((v - lo) / (hi - lo)) * (B - T);
   const x = (i: number) => L + 8 + (i / Math.max(1, values.length - 1)) * (RGT - L - 16);
@@ -42,11 +43,18 @@ export default function LineChart({ values, labels, band, baseline, decimals, un
   const active = hover ?? last;
   const tickDecimals = ticks.some(t => t % 1 !== 0) ? 1 : 0;
   const xLabels = values.length <= 8 ? values.map((_, i) => i) : [0, Math.round(last * 0.21), Math.round(last * 0.47), Math.round(last * 0.74), last];
-  const tipX = Math.min(x(active) - 66, W - 96);
-  const tipY = y(values[active]) + 14 > B - 60 ? y(values[active]) - 64 : y(values[active]) + 14;
+  const tipText = active === last && tipValue ? tipValue : `${fmt(values[active], decimals)} ${unit.length <= 3 ? unit : ''}`.trim();
+  const tipSub = active === last ? tipLabel : labels[active];
+  // Size the box to its text, center it on the point, and keep it inside the chart.
+  const tipW = Math.max(92, Math.max(tipText.length * 9.5, tipSub.length * 7) + 22);
+  const tipH = 52;
+  const px = x(active), py = y(values[active]);
+  const tipX = Math.max(0, Math.min(W - tipW, px - tipW / 2));
+  const above = py - tipH - 14;
+  const tipY = above >= 0 ? above : Math.min(B - tipH, py + 14);
 
   return (
-    <svg className="linechart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Trend chart"
+    <svg className="linechart" viewBox={`0 0 ${W} ${H}`} overflow="visible" role="img" aria-label="Trend chart"
       onMouseLeave={() => setHover(null)}
       onMouseMove={e => {
         const r = e.currentTarget.getBoundingClientRect();
@@ -67,9 +75,9 @@ export default function LineChart({ values, labels, band, baseline, decimals, un
       {hover !== null && <line x1={x(active)} x2={x(active)} y1={T} y2={B} stroke="var(--color-border-strong)" strokeWidth="1" strokeDasharray="3 3" />}
       <circle cx={x(active)} cy={y(values[active])} r="6" fill="var(--color-chart-series-1)" stroke="var(--color-bg-surface)" strokeWidth="3" />
       <g transform={`translate(${tipX},${tipY})`}>
-        <rect width="92" height="52" rx="8" fill="var(--color-bg-canvas)" stroke="var(--color-border-strong)" strokeWidth="1" filter="url(#tip-shadow)" />
-        <text x="10" y="23" className="chart-tip">{active === last && tipValue ? tipValue : `${fmt(values[active], decimals)} ${unit.length <= 3 ? unit : ''}`}</text>
-        <text x="10" y="41" className="chart-text chart-text-2">{active === last ? tipLabel : labels[active]}</text>
+        <rect width={tipW} height={tipH} rx="8" fill="var(--color-bg-canvas)" stroke="var(--color-border-strong)" strokeWidth="1" filter="url(#tip-shadow)" />
+        <text x="11" y="23" className="chart-tip">{tipText}</text>
+        <text x="11" y="41" className="chart-text chart-text-2">{tipSub}</text>
       </g>
       {xLabels.map((i, k) => (
         <text key={i} x={k === xLabels.length - 1 ? RGT : k === 0 ? L + 2 : x(i)} y="286" className="chart-text" textAnchor={k === xLabels.length - 1 ? 'end' : k === 0 ? 'start' : 'middle'}>{labels[i]}</text>
